@@ -3,12 +3,12 @@
         "Chemical": {
             "projects": {
                 "Navin": {
-                    "requests_prompts": 102,
+                    "requests_prompts": 324,
                     "year": 2024
                 }
             },
             "requests_parsing": 0,
-            "requests_prompts": 102,
+            "requests_prompts": 456,
             "L1": [
                 "E",
                 "E",
@@ -90,7 +90,7 @@
                 "Percentage of water reused, during the reporting period :"
             ],
             "Prompt": [
-                "Total {alias}  during {year}. Enter \\\"Not Available\\\" if not found. Answer in one word along with units",
+                "{alias} during {year}. Enter \\\"Not Available\\\" if not found. Answer in one word along with units",
                 "Total {alias}  during {year}. Enter \\\"Not Available\\\" if not found. Answer in one word along with units",
                 "Total Scope 1 {alias}  during {year}. Enter \\\"Not Available\\\" if not found. Answer in one word along with units",
                 "Total Scope 3 {alias}  during {year}. Enter \\\"Not Available\\\" if not found. Answer in one word along with units",
@@ -106,7 +106,7 @@
                 "Total {alias} during {year}.Answer in one word along with units. Enter \\\"Not Available\\\" if not found."
             ],
             "Alias 1": [
-                "Revenue",
+                "Turnover",
                 "GHG Emission",
                 "GHG Emission",
                 "GHG Emission",
@@ -122,7 +122,7 @@
                 "water reused"
             ],
             "Alias 2": [
-                NaN,
+                "Total revenue",
                 "Greenhouse Gases emission",
                 "Greenhouse Gases emission",
                 "Greenhouse Gases emission",
@@ -138,7 +138,7 @@
                 "water recycled"
             ],
             "Alias 3": [
-                NaN,
+                "Total Sales",
                 "emission",
                 "emission",
                 "emission",

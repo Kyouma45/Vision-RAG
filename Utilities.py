@@ -19,13 +19,14 @@ from langchain_core.output_parsers import StrOutputParser
 from langchain_pinecone import PineconeVectorStore
 from dotenv import load_dotenv
 from pdf import parse_files
-from vectorstore import create_vectorstore
+from vectorstore import create_vectorstore  # , hybrid_search, HybridRetriever
 from operator import itemgetter
-from typing import List
 from status import check_project_batch_status
 from openpyxl import Workbook
 from openpyxl.utils.dataframe import dataframe_to_rows
-from typing import Optional, Dict, Any
+from typing import Optional, Dict, Any, Tuple, List
+from langchain.retrievers.contextual_compression import ContextualCompressionRetriever
+from langchain_cohere import CohereRerank
 
 load_dotenv()
 
@@ -352,25 +353,46 @@ def load_project():
                 st.session_state.current_project = project_name
                 st.session_state.selected_year = data['sectors'][sector_name]['projects'][project_name]['year']
                 st.session_state.chat_history = []
-                index_name = f"./sectors/{st.session_state.current_sector}/{st.session_state.current_project}".lower()
+                index_name = f"./sectors/{st.session_state.current_sector}/{st.session_state.current_project}"
+                path = f"./sectors/{st.session_state.current_sector}/{st.session_state.current_project}"
+                # bm25_encoder = BM25Encoder().default()
                 index_name = validate_index_name(index_name)
                 index = pc.Index(index_name)
-                # try:
-                if True:
+                try:
                     vector_store = PineconeVectorStore(index=index,
-                                                       embedding=st.session_state.embeddings
+                                                       embedding=st.session_state.embeddings,
+                                                       text_key="text",
                                                        )
-                    st.session_state.retriever = vector_store.as_retriever(search_type="similarity_score_threshold",
-                                                                           search_kwargs={"k": 4,
-                                                                                          "score_threshold": 0.5},
-                                                                           )
+                    retriever = vector_store.as_retriever(search_type="similarity_score_threshold",
+                                                          search_kwargs={"k": 4,
+                                                                         "score_threshold": 0.90},
+                                                          )
+
+                    compressor = CohereRerank(model="rerank-english-v3.0")
+                    st.session_state.retriever = ContextualCompressionRetriever(
+                        base_compressor=compressor, base_retriever=retriever
+                    )
+
+                    # st.session_state.retriever = HybridRetriever(
+                    #     vectorstore=vector_store,
+                    #     k=4,
+                    #     alpha=0.5,
+                    #     filter=None,
+                    # )
+
+                    # st.session_state.retriever = PineconeHybridSearchRetriever(
+                    #     embeddings=st.session_state.embeddings,
+                    #     sparse_encoder=bm25_encoder,
+                    #     index=index,
+                    #     top_k=4,
+                    # )
                     st.session_state.project_path = str(f"./sectors/{sector_name}/{project_name}")
                     st.session_state.sector = sector_name
                     st.session_state.project = project_name
                     st.sidebar.success(f"project '{project_name}' loaded successfully")
                     return sector_name
-                # except Exception as e:
-                #     st.sidebar.error(f"Error loading project '{project_name}': {str(e)}")
+                except Exception as e:
+                    st.sidebar.error(f"Error loading project '{project_name}': {str(e)}")
             else:
                 st.sidebar.error("Please select a project")
 
@@ -388,25 +410,29 @@ def delete_project():
 
         if st.button("Delete selected projects"):
             if selected_projects:
-                for project_name in selected_projects:
-                    try:
-                        shutil.rmtree(f'./sectors/{sector_name}/{project_name}')
-                        del data["sectors"][sector_name]["projects"][project_name]
-                        temp[sector_name]["projects"] = [project for project in temp[sector_name]['projects'] if
-                                                         project['project_name'] != project_name]
-                        index_name = f"./sectors/{sector_name}/{project_name}".lower()
-                        index_name = validate_index_name(index_name)
-                        pc.delete_index(index_name)
+                with st.spinner("Deleting selected projects..."):
+                    for project_name in selected_projects:
+                        try:
+                            shutil.rmtree(f'./sectors/{sector_name}/{project_name}')
+                            del data["sectors"][sector_name]["projects"][project_name]
+                            temp[sector_name]["projects"] = [
+                                project for project in temp[sector_name]['projects']
+                                if project['project_name'] != project_name
+                            ]
+                            index_name = f"./sectors/{sector_name}/{project_name}".lower()
+                            index_name = validate_index_name(index_name)
+                            pc.delete_index(index_name)
 
-                        if st.session_state.get('current_project') == project_name:
-                            st.session_state.current_sector = None
-                            st.session_state.current_project = None
-                            st.session_state.chat_history = []
-                    except Exception as e:
-                        st.error(f"Error deleting project '{project_name}': {e}")
-                        continue
+                            if st.session_state.get('current_project') == project_name:
+                                st.session_state.current_sector = None
+                                st.session_state.current_project = None
+                                st.session_state.chat_history = []
+                        except Exception as e:
+                            st.error(f"Error deleting project '{project_name}': {e}")
+                            continue
 
-                save_sectors(temp)
+                    save_sectors(temp)
+
                 save_data(data)
                 st.success(f"Selected projects have been removed: {', '.join(selected_projects)}")
             else:
@@ -515,7 +541,8 @@ def chat_interface(sector):
                           "would respond to these questions. If the"
                           "format of the answer is described use that format to answer the question else answer the"
                           "question in a concise manner in three to five sentences. "
-                          "Keep the answer concise.\n\nContext: {context}"),
+                          "Keep the answer concise.\n\nContext: {context}"
+                          "If no Context is given, tell user no data present."),
             ("human", "{question}"),
         ])
 
@@ -739,8 +766,6 @@ def chat_interface(sector):
     # Load or create the DataFrame
     if os.path.exists(file_path):
         df = pd.read_csv(file_path)
-        # Ensure 'Page Numbers' is stored as a list
-        df['Page Numbers'] = df['Page Numbers'].apply(eval)
     else:
         df = pd.DataFrame({
             'Prompt': [],
@@ -852,11 +877,11 @@ def project_status():
         st.session_state.selected_year = project_data["year"]
 
         if status == "completed":
-            st.success(f"Project '{selected_project}' is ready!")
+            st.success(f"Project '{selected_project}' Processed!")
 
-            project_dir_path = Path(f"./sectors/{selected_sector}/{selected_project}".lower())
-            st.write("Creating vector store...")
-            create_vectorstore(text, str(project_dir_path))
+            project_dir_path = Path(f"./sectors/{selected_sector}/{selected_project}")
+            path = f"./sectors/{selected_sector}/{selected_project}"
+            create_vectorstore(text, path)
 
             st.write("Compressing Parsed PDFs...")
             compress_parsed_pdfs(project_dir_path)
