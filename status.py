@@ -4,6 +4,9 @@ from openai import OpenAI
 from langchain.text_splitter import RecursiveCharacterTextSplitter
 from langchain.docstore.document import Document
 import time
+import nltk
+
+nltk.download('punkt_tab')
 
 client = OpenAI()
 splitter = RecursiveCharacterTextSplitter(

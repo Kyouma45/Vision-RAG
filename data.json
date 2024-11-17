@@ -1,206 +1,34 @@
 {
     "sectors": {
-        "Chemical": {
+        "chemical": {
             "projects": {
-                "Navin": {
-                    "requests_prompts": 324,
+                "navin": {
+                    "requests_prompts": 229,
+                    "year": 2024
+                },
+                "piid": {
+                    "requests_prompts": 1148,
                     "year": 2024
                 }
             },
             "requests_parsing": 0,
-            "requests_prompts": 456,
-            "L1": [
-                "E",
-                "E",
-                "E",
-                "E",
-                "E",
-                "E",
-                "E",
-                "E",
-                "E",
-                "E",
-                "E",
-                "E",
-                "E",
-                "E"
-            ],
-            "Theme": [
-                "General",
-                "Emissions & Climate Change",
-                "Emissions & Climate Change",
-                "Emissions & Climate Change",
-                "Emissions & Climate Change",
-                "Emissions & Climate Change",
-                "Emissions & Climate Change",
-                "Energy Use & Efficiency",
-                "Energy Use & Efficiency",
-                "Energy Use & Efficiency",
-                "Water Use & Management",
-                "Water Use & Management",
-                "Water Use & Management",
-                "Water Use & Management"
-            ],
-            "Topic": [
-                "General",
-                "GHG Emissions",
-                "GHG Emissions",
-                "GHG Emissions",
-                "GHG Emissions",
-                "GHG Emissions",
-                "GHG Emissions",
-                "Energy Use",
-                "Energy Use",
-                "Energy Use",
-                "Water Withdrawn",
-                "Water Withdrawn",
-                "Water Consumption",
-                "Water Efficiency"
-            ],
-            "KPI_code": [
-                "GEN 1.1",
-                "ECC 2.3",
-                "ECC 2.4",
-                "ECC 2.10",
-                "ECC 2.12",
-                "ECC 2.14",
-                "ECC 2.28",
-                "ENE 3.1",
-                "ENE 3.3",
-                "ENE 3.4",
-                "WTR 2.2",
-                "WTR 2.3",
-                "WTR 3.4",
-                "WTR 4.3"
-            ],
-            "KPI": [
-                "Total revenue in Rs. Cr ",
-                "Total GHG emissions (in MT of CO2e) during the reporting period. Enter \"Not Available\" if so.",
-                "Total Scope 1 GHG emissions (in MT of CO2e) during the reporting period. Enter \"Not Available\" if so.",
-                "Total Scope 3 GHG emissions (in MT of CO2e) during the reporting period. Enter \"Not Available\" if so.",
-                "Total GHG Emissions intensity",
-                "Total Scope 1 and Scope 2 emissions intensity",
-                "Internal carbon price, in USD per ton.",
-                "Total energy consumption (in units or kWh)",
-                "Proportion of renewable energy in total energy consumption",
-                "Total energy used from renewable energy ",
-                "Percentage of total surface water withdrawn during the reporting period. Enter \"NA\" where not applicable.",
-                "Percentage of total ground water withdrawn during the reporting period. Enter \"NA\" where not applicable.",
-                "Water usage intensity (Water consumed / turnover)",
-                "Percentage of water reused, during the reporting period :"
-            ],
-            "Prompt": [
-                "{alias} during {year}. Enter \\\"Not Available\\\" if not found. Answer in one word along with units",
-                "Total {alias}  during {year}. Enter \\\"Not Available\\\" if not found. Answer in one word along with units",
-                "Total Scope 1 {alias}  during {year}. Enter \\\"Not Available\\\" if not found. Answer in one word along with units",
-                "Total Scope 3 {alias}  during {year}. Enter \\\"Not Available\\\" if not found. Answer in one word along with units",
-                "Total {alias} intensity  during {year} .Answer in one word along with units. Enter \\\"Not Available\\\" if not found.",
-                "Total Scope 1 and scope 2{alias} intensity  during {year} .Answer in one word along with units. Enter \\\"Not Available\\\" if not found.",
-                "{alias} during {year} .Answer in one word along with units. Enter \\\"Not Available\\\" if not found.",
-                "Total {alias} during {year} .Answer in one word along with units. Enter \\\"Not Available\\\" if not found.",
-                "{alias} from total energy consumed during {year} .Answer in one word along with units. Enter \\\"Not Available\\\" if not found.",
-                "{alias} from renewable energy during {year} .Answer in one word along with units. Enter \\\"Not Available\\\" if not found.",
-                "Total surface water {alias} during {year}.Answer in one word along with units. Enter \\\"Not Available\\\" if not found.",
-                "Total Ground water {alias} during {year}.Answer in one word along with units. Enter \\\"Not Available\\\" if not found.",
-                "Total water {alias} during {year}.Answer in one word along with units. Enter \\\"Not Available\\\" if not found.",
-                "Total {alias} during {year}.Answer in one word along with units. Enter \\\"Not Available\\\" if not found."
-            ],
-            "Alias 1": [
-                "Turnover",
-                "GHG Emission",
-                "GHG Emission",
-                "GHG Emission",
-                "emission",
-                "emission",
-                "Internal carbon prices",
-                "Energy consumption",
-                "Proportion of renewable energy ",
-                "Total energy consumed",
-                "withdrawn ",
-                "withdrawn ",
-                "intensity",
-                "water reused"
-            ],
-            "Alias 2": [
-                "Total revenue",
-                "Greenhouse Gases emission",
-                "Greenhouse Gases emission",
-                "Greenhouse Gases emission",
-                "Greenhouse Gases emission",
-                "Greenhouse Gases emission",
-                NaN,
-                "Energy usage",
-                "Percentage of renewable energy",
-                "Total energy used",
-                "Withdrawal",
-                "Withdrawal",
-                "intensity per rupee of turnover",
-                "water recycled"
-            ],
-            "Alias 3": [
-                "Total Sales",
-                "emission",
-                "emission",
-                "emission",
-                "GHG Emission",
-                "GHG Emission",
-                NaN,
-                "Energy Used",
-                "Proportion of renewable energy ",
-                NaN,
-                "Usage",
-                "Usage",
-                "Intensity Ratio",
-                "Recycled Water"
-            ],
-            "Alias 4": [
-                NaN,
-                NaN,
-                NaN,
-                NaN,
-                NaN,
-                NaN,
-                NaN,
-                NaN,
-                NaN,
-                NaN,
-                "Consumption",
-                "Consumption",
-                "usage intensity",
-                "Reused Water"
-            ],
-            "Alias 5": [
-                NaN,
-                NaN,
-                NaN,
-                NaN,
-                NaN,
-                NaN,
-                NaN,
-                NaN,
-                NaN,
-                NaN,
-                "Sourcing",
-                "Sourcing",
-                NaN,
-                NaN
-            ],
-            "Format": [
-                "Number",
-                "Number",
-                "Number",
-                "Number",
-                "Ratio",
-                "Ratio",
-                "Currency",
-                "Number",
-                "Percent",
-                "Number",
-                "Percent",
-                "Percent",
-                "Ratio",
-                "Percent"
-            ]
+            "requests_prompts": 1384,
+            "description": "",
+            "last_updated": "2024-11-11 16:57:25"
+        },
+        "cement": {
+            "projects": {
+                "ambuja-": {
+                    "requests_prompts": 0,
+                    "year": 2024
+                },
+                "greenply": {
+                    "requests_prompts": 1280,
+                    "year": 2023
+                }
+            },
+            "requests_parsing": 0,
+            "requests_prompts": 1280
         }
     }
 }
