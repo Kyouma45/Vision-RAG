@@ -952,6 +952,7 @@ def delete_project():
                                 pc.delete_index(index_name)
                             except Exception as e:
                                 st.warning(f"⚠️ Could not delete index for '{project_name}': {str(e)}")
+                                return
 
                             # Update data structures
                             del data["sectors"][sector_name]["projects"][project_name]
@@ -1041,7 +1042,8 @@ def delete_sector():
             st.error("⚠️ Please select a sector to delete")
             return
 
-        try:
+        # try:
+        if True:
             with st.spinner(f"🗑️ Deleting sector '{sector_name}'..."):
                 sector_path = os.path.join('./sectors', sector_name)
 
@@ -1069,8 +1071,10 @@ def delete_sector():
                         raise
 
                 # Update data structures
-                del data["sectors"][sector_name]
-                del temp[sector_name]
+                if sector_name in data["sectors"]:
+                    del data["sectors"][sector_name]
+                if sector_name in temp:
+                    del temp[sector_name]
                 save_sectors(temp)
                 save_data(data)
 
@@ -1084,14 +1088,14 @@ def delete_sector():
                 time.sleep(0.5)  # Brief delay for UI feedback
                 st.rerun()  # Refresh the page to show updated state
 
-        except FileNotFoundError:
-            st.error(f"🚫 Error: Sector directory not found at '{sector_path}'")
-        except PermissionError as e:
-            st.error("🔒 Permission denied: Unable to delete sector. Please check your permissions.")
-            st.error(f"Details: {str(e)}")
-        except Exception as e:
-            st.error("❌ An unexpected error occurred while deleting the sector")
-            st.error(f"Details: {str(e)}")
+        # except FileNotFoundError:
+        #     st.error(f"🚫 Error: Sector directory not found at '{sector_path}'")
+        # except PermissionError as e:
+        #     st.error("🔒 Permission denied: Unable to delete sector. Please check your permissions.")
+        #     st.error(f"Details: {str(e)}")
+        # except Exception as e:
+        #     st.error("❌ An unexpected error occurred while deleting the sector")
+        #     st.error(f"Details: {str(e)}")
 
 
 def chat_interface(sector):

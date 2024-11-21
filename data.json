@@ -6,8 +6,8 @@
                     "requests_prompts": 229,
                     "year": 2024
                 },
-                "piid": {
-                    "requests_prompts": 1148,
+                "piid-pdf-xml": {
+                    "requests_prompts": 0,
                     "year": 2024
                 }
             },
@@ -29,6 +29,13 @@
             },
             "requests_parsing": 0,
             "requests_prompts": 1280
+        },
+        "test": {
+            "projects": {},
+            "requests_parsing": 0,
+            "requests_prompts": 0,
+            "description": "",
+            "created_at": "2024-11-19 14:42:48"
         }
     }
 }
