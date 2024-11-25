@@ -3,7 +3,7 @@
         "chemical": {
             "projects": {
                 "navin": {
-                    "requests_prompts": 229,
+                    "requests_prompts": 232,
                     "year": 2024
                 },
                 "piid-pdf-xml": {
@@ -12,7 +12,7 @@
                 }
             },
             "requests_parsing": 0,
-            "requests_prompts": 1384,
+            "requests_prompts": 1387,
             "description": "",
             "last_updated": "2024-11-11 16:57:25"
         },
@@ -29,13 +29,6 @@
             },
             "requests_parsing": 0,
             "requests_prompts": 1280
-        },
-        "test": {
-            "projects": {},
-            "requests_parsing": 0,
-            "requests_prompts": 0,
-            "description": "",
-            "created_at": "2024-11-19 14:42:48"
         }
     }
 }

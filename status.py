@@ -10,7 +10,7 @@ nltk.download('punkt_tab')
 
 client = OpenAI()
 splitter = RecursiveCharacterTextSplitter(
-    chunk_size=1500,
+    chunk_size=2000,
     chunk_overlap=200
 )
 

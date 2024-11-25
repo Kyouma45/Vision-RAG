@@ -716,6 +716,8 @@ def create_project():
 
             # Set the year
             st.session_state.selected_year = project_name[-4:]
+            project_name = project_name[:-4]
+            project_name = project_name.strip()
 
             # Create project with progress tracking
             status_container = st.empty()
@@ -1384,6 +1386,7 @@ def chat_interface(sector):
                             page_num = doc.metadata.get('page_number', 'N/A')
                             st.markdown(f"Page Number: {page_num}")
                             st.markdown(f"File: {doc.metadata.get('source', 'N/A')}")
+                            st.markdown(f"Text: {doc.page_content}")
                             st.markdown("---")
                             page_nums.append(str(page_num))
 
@@ -1532,7 +1535,7 @@ def project_status():
                     my_bar.progress(75, text="Creating vector store...")
                     # Create vector store with progress indicator
                     with st.status("Creating vector store...") as status:
-                        create_vectorstore(text, path)
+                        create_vectorstore(text, path+f"-{st.session_state.selected_year}")
                         status.update(label="Vector store created!", state="complete")
 
                     # Compress PDFs with progress indicator

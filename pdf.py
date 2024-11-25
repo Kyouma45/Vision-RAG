@@ -145,7 +145,7 @@ def parse_pdfs(file, file_name, save_path, pdf_progress, pdf_status, overall_sta
                         ]
                     }
                 ],
-                "max_tokens": 1500
+                "max_tokens": 2000
             }
         }
 
