@@ -23,36 +23,39 @@
 ## How It Works  
 
 1. **Set KPI Questions**  
-   - Input and configure the KPI questions within the application.
-     ![image](https://github.com/user-attachments/assets/1b00f674-0f61-45cc-b97c-350e04525d8e)
+   - Input and configure the KPI questions within the application.  
+     ![391055651-1b00f674-0f61-45cc-b97c-350e04525d8e](https://github.com/user-attachments/assets/46f68e86-d9f5-4993-af46-282e1a3efe41)
 
 
 2. **Create a Sector**
    - Create a sector with a short description.
-     ![image](https://github.com/user-attachments/assets/3d765647-ad5e-4e66-a1a0-8cae02ddde18)
+     ![391055529-3d765647-ad5e-4e66-a1a0-8cae02ddde18](https://github.com/user-attachments/assets/8bc5357f-353e-4d1f-9fea-36f6da303d8b)
 
 
-4. **Create a Project**  
+
+3. **Create a Project**  
    - Start a new project within a sector and upload the necessary files (PDFs and XML) and year.
-     ![image](https://github.com/user-attachments/assets/180ac2ed-dacf-4fb6-87f1-f447c5624a75)
-     ![image](https://github.com/user-attachments/assets/07f13fa0-a844-494b-8c61-31b2204f3503)
+      ![image](https://github.com/user-attachments/assets/52d6fc75-e144-4be0-950f-34a79352a6c8)
+      ![image](https://github.com/user-attachments/assets/f42fff1b-b9da-458a-9fea-760e39890c7c)
+
+
 
 
   
-5. **Check Project Status**
+4. **Check Project Status**
    - Check if the model has finished processing your newly created project or not.
-     ![image](https://github.com/user-attachments/assets/3c1c2f80-cd05-4133-8722-b86efe6c44cf)
-     ![image](https://github.com/user-attachments/assets/a3b9bcb5-0609-4b83-bf5e-1e5bf52097d2)
+      ![image](https://github.com/user-attachments/assets/c66193c8-6312-4759-a705-329ae6c71bab)
+      ![image](https://github.com/user-attachments/assets/8aa6b903-b705-4fb2-8199-785e01060b5d)
 
 
 
-6. **Peer Benchmarking Report Generation**
+5. **Peer Benchmarking Report Generation**
    - You can load the project and generate the responses for the predetermined KPIs or use the chat option to query any custom question.
+      ![image](https://github.com/user-attachments/assets/8adb7bc0-1a19-4087-96e6-bb7e4059ad1b)
 
-     ![image](https://github.com/user-attachments/assets/5624eb18-1c74-4c57-ab21-06c97b92b872)
 
 
-7. **Download Report**  
+6. **Download Report**  
    - Download the finalized peer benchmarking report for your projects with one click.  
 
 ---
