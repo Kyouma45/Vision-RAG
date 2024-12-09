@@ -1,13 +1,13 @@
-# Vision-RAG: Vision-Retrieval-Augmented Generation Application Documentation
+# EnvintAI: Vision-RAG Application Documentation
 
-Vision-RAG is an advanced application designed to process and extract relevant information from any type of PDF, regardless of its structure. It also parses infographics and accurately extracts data from formatted tables. By leveraging the power of Large Language Models (LLMs), Vision-RAG delivers exceptional accuracy and efficiency.
+EnvintAI is an advanced Vision-RAG (Retrieval-Augmented Generation) application designed to process and extract relevant information from any type of PDF, regardless of its structure. It also parses infographics and accurately extracts data from formatted tables. By leveraging the power of Large Language Models (LLMs), EnvintAI delivers exceptional accuracy and efficiency. It uses advanced architecture like hybrid search, OCR, Reranker, Prompt Engineering, Hyperparameter Tunning, etc to reduce hallucination, cost, and inferance time while increasing accuracy.
 
 ---
 
 ## Key Features
 
 ### 1. **Multi-format Data Parsing**
-- **PDF Parsing**: Vision-RAG converts each PDF page into grayscale images and processes them in batches for cost-efficiency.
+- **PDF Parsing**: EnvintAI converts each PDF page into grayscale images and processes them in batches for cost-efficiency.
 - **XML Parsing**: Users can upload XML files either independently or alongside PDFs. The extracted data from XMLs is merged with PDFs to enhance the knowledge database.
 
 ### 2. **Efficient Batch Processing**
@@ -34,6 +34,9 @@ Vision-RAG is an advanced application designed to process and extract relevant i
 
 ### 5. **Interactive Querying**
 - Includes a **chat box** for querying any project-related questions.
+
+### 6. **Multiple Alias**
+- You can provide up to 5 different aliases for one single KPI. For eg: GHG, Greenhouse Gas, Emission, etc. This is done because same word can be written differently in all the PDFs depending on the company.
 
 ---
 
@@ -86,4 +89,101 @@ Vision-RAG is an advanced application designed to process and extract relevant i
 
 ---
 
-Vision-RAG provides a robust, efficient, and accurate solution for parsing and analyzing complex documents, making it an essential tool for data-driven decision-making.
+## Code Walkthrough
+
+### **main.py**
+This central script connects all custom modules and orchestrates the workflow.
+
+---
+
+### **pdf.py**
+Handles the parsing of PDF and XML documents, creating batches for the LLM to process or storing results for later use. It supports multiple file uploads (PDFs, XMLs, or both).
+
+#### Functions:
+1. **parse_files**:  
+   - Accepts inputs along with metadata (e.g., project name, sector).  
+   - Updates active projects (`sectors.json`).  
+   - Delegates processing to `parse_pdfs` or `parse_xml`.
+
+2. **parse_pdfs**:  
+   - Converts PDF to grayscale images.  
+   - Creates LLM-compatible batches for processing.  
+   - Tracks batches and returns metadata upon completion.
+
+3. **parse_xml**:  
+   - Extracts text and metadata from XML files.
+
+4. **save_sectors**:  
+   - Updates the `sectors.json` file with new data.
+
+5. **retry_request_create**:  
+   - Implements a retry mechanism for LLM batch requests.
+
+6. **Other utilities**:  
+   - `retry_request`, `xml_to_dict`, `load_sectors`, `Encode_image`.
+
+---
+
+### **status.py**
+Manages project and batch statuses.
+
+#### Functions:
+- **retry_request**: Implements retry logic for request failures.  
+- **Check_project_batch_status**: Monitors batch processing progress.
+
+---
+
+### **vectorstore.py**
+Handles vector storage and metadata preparation.
+
+#### Functions:
+1. **prepare_metadata**: Extracts metadata from Langchain documents and converts them into the format Pinecone requires. 
+2. **validate_index_name**: Converts the project name into the format Pinecone requires.
+3. **create_vectorstore**: Creates a serverless vector store using Pinecone.
+
+---
+
+### **Utilities.py**
+It contains helper functions for managing data, prompts, and sectors.
+
+#### Functions:
+1. **File Management**:
+   - `load_prompts`, `load_sectors`, `load_data`, `save_data`, `save_sectors`.
+
+2. **Data Handling**:
+   - `to_excel`, `extract_text_from_jsonl`, `compress_parsed_pdfs`.
+
+3. **Project and Sector Management**:
+   - `validate_index_name`, `refresh_data`, `update_KPIs`.  
+   - `create_sector`, `create_project`, `load_project`, `delete_project`, `delete_sector`.
+
+4. **Interactive Tools**:
+   - `chat_interface`, `project_status`.
+
+---
+
+## Features
+1. **Multi-File Support**: Simultaneous handling of PDFs and XMLs.
+2. **Batch Processing**: Efficiently creates LLM batches for large datasets.
+3. **Metadata Management**: Dynamically updates and stores project and sector data.
+4. **Retry Mechanism**: Ensures robust request handling with retries.
+5. **Vector Storage**: Prepares, validates, and creates LLM-compatible vector stores.
+
+---
+
+## Usage
+1. **Prepare Inputs**: Organize PDFs/XMLs and required metadata.
+2. **Run main.py**: Integrates modules and initiates the workflow.
+3. **Monitor Progress**: Use `status.py` to check batch and project statuses.
+4. **Manage Sectors and Projects**: Utilities in `Utilities.py` support adding, deleting, and refreshing data.
+
+---
+
+## Future Extensions
+- Support for additional file formats.
+- Enhanced retry logic with exponential backoff.
+- Improved visualization of processing statuses.
+
+--- 
+
+EnvintAI provides a robust, efficient, and accurate solution for parsing and analyzing complex documents, making it an essential tool for data-driven decision-making.
