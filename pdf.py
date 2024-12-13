@@ -12,9 +12,12 @@ from dotenv import load_dotenv
 import uuid
 import tempfile
 from pdf2image import convert_from_path
+import io
+from PIL import Image
 
 load_dotenv()
 client = OpenAI()
+model = "gpt-4o"
 
 
 def encode_image(image_path):
@@ -24,6 +27,20 @@ def encode_image(image_path):
     except IOError as e:
         st.error(f"Error reading image file: {e}")
         return None
+
+
+def convert_image_to_base64(file):
+    # Open the image
+    image = Image.open(file)
+    # Create a byte stream
+    byte_stream = io.BytesIO()
+    # Save the image to the byte stream
+    image.save(byte_stream, format='PNG')
+    # Get the byte data from the stream
+    byte_data = byte_stream.getvalue()
+    # Encode the byte data to base64
+    base64_image = base64.b64encode(byte_data).decode('utf-8')
+    return base64_image
 
 
 def load_sectors(json_file_path='sectors.json'):
@@ -120,7 +137,7 @@ def parse_pdfs(file, file_name, save_path, pdf_progress, pdf_status, overall_sta
             "method": "POST",
             "url": "/v1/chat/completions",
             "body": {
-                "model": "gpt-4o",
+                "model": model,
                 "messages": [
                     {
                         "role": "system",
@@ -170,7 +187,7 @@ def parse_pdfs(file, file_name, save_path, pdf_progress, pdf_status, overall_sta
 
         pdf_progress.progress(page_number / total_pages)
         pdf_status.markdown(
-            f"<p class='status-text'>Processing PDF {file_index + 1}/{total_files}, Page {page_number}/{total_pages}</p>",
+            f"<p class='status-text'>Processing PDF {file_name}, Page {page_number}/{total_pages}</p>",
             unsafe_allow_html=True)
 
         overall_progress_percentage = ((file_index * total_pages + page_number) / (total_files * total_pages)) * 100
@@ -214,6 +231,80 @@ def parse_xml(file, file_name, save_path, xml_progress, xml_status):
         return None
 
 
+def parse_jpgs(file, file_name, save_path, jpg_progress, jpg_status, overall_status, file_index, total_files):
+    jpg_info = {
+        "file_name": file_name,
+        "total_pages": 1,
+        "pages": []
+    }
+    jsonl_file_path = os.path.join(save_path, f'output_{file_name}.jsonl')
+    base64_image = convert_image_to_base64(file)
+    payload = {
+        "custom_id": f"{file_name}",
+        "method": "POST",
+        "url": "/v1/chat/completions",
+        "body": {
+            "model": model,
+            "messages": [
+                {
+                    "role": "system",
+                    "content": "You are a helpful assistant."
+                },
+                {
+                    "role": "user",
+                    "content": [
+                        {
+                            "type": "text",
+                            "text": "Extract all text and tables from this image. For tables, format them "
+                                    "as markdown tables. Explain any info-graphics "
+                                    "Do not change or fill any value by yourself."
+                                    "Stick to the text in image only."
+                                    "If the text is not in English, please provide a translation."
+                        },
+                        {
+                            "type": "image_url",
+                            "image_url": {
+                                "url": f"data:image/jpeg;base64,{base64_image}"
+                            }
+                        }
+                    ]
+                }
+            ],
+            "max_tokens": 2000
+        }
+    }
+    with open(jsonl_file_path, 'w') as f:
+        json.dump(payload, f)
+        f.write('\n')
+    batch_input_file = retry_request_create(file=open(jsonl_file_path, "rb"), purpose="batch")
+    batch_job = retry_request(input_file_id=batch_input_file.id,
+                                endpoint="/v1/chat/completions",
+                                completion_window="24h",
+                                metadata={
+                                    "description": f"extract text and tables"
+                            })
+   
+    jpg_info["pages"].append({
+        "page_number": -1,
+        "batch_id": batch_job.id
+    })
+    
+    # Update JPG progress based on total number of image files
+    jpg_progress.progress((file_index + 1) / total_files)
+    
+    jpg_status.markdown(
+        f"<p class='status-text'>Processing JPG {file_name}</p>",
+        unsafe_allow_html=True)
+   
+    overall_progress_percentage = ((file_index + 1) / total_files) * 100
+    overall_status.markdown(
+        f"<p class='status-text'>Overall Progress: {overall_progress_percentage:.2f}% completed</p>",
+        unsafe_allow_html=True
+    )
+    time.sleep(2)
+    return jpg_info                                
+
+
 def parse_files(files: List[BytesIO], save_path: str, sector_name: str, project_name: str, year) -> None:
     start_time = time.time()
     total_files = len(files)
@@ -241,29 +332,64 @@ def parse_files(files: List[BytesIO], save_path: str, sector_name: str, project_
         overall_progress = st.progress(0)
         file_status = st.empty()
         time_status = st.empty()
-
+        
+        # Track which file types are present
+        has_pdfs = any(file.name.endswith(".pdf") for file in files)
+        has_xmls = any(file.name.endswith(".xml") for file in files)
+        has_images = any(file.name.endswith((".jpg", ".jpeg", ".png")) for file in files)
+        
+        # Conditionally create subheaders and progress bars
+        if has_pdfs:
+            st.subheader("PDF Progress")
+            pdf_progress = st.progress(0)
+            pdf_status = st.empty()
+        
+        if has_xmls:
+            st.subheader("XML Progress")
+            xml_progress = st.progress(0)
+            xml_status = st.empty()
+        
+        if has_images:
+            st.subheader("Image Progress")
+            jpg_progress = st.progress(0)
+            jpg_status = st.empty()
+        
+        # Track progress for each file type
+        pdf_count = len([f for f in files if f.name.endswith(".pdf")])
+        xml_count = len([f for f in files if f.name.endswith(".xml")])
+        jpg_count = len([f for f in files if f.name.endswith((".jpg", ".jpeg", ".png"))])
+        
+        # Tracking variables for each file type
+        pdf_processed = 0
+        xml_processed = 0
+        jpg_processed = 0
+        
         for file_index, file in enumerate(files):
             file_name = file.name
-
             file_status.markdown(f"<p class='status-text'>Processing file {file_index + 1}/{total_files}: {file_name}</p>", unsafe_allow_html=True)
-
+            
             if file_name.endswith(".pdf"):
-                st.subheader("Current PDF Progress")
-                pdf_progress = st.progress(0)
-                pdf_status = st.empty()
-
                 data = parse_pdfs(file, file_name, save_path, pdf_progress, pdf_status, overall_progress, file_index, total_files)
                 if data:
                     project["files"].append(data)
+                    pdf_processed += 1
+                    pdf_progress.progress(pdf_processed / pdf_count)
+            
             elif file_name.endswith(".xml"):
-                st.subheader("XML Processing")
-                xml_progress = st.progress(0)
-                xml_status = st.empty()
-
                 xml_data = parse_xml(file, file_name, save_path, xml_progress, xml_status)
                 if xml_data:
                     project["xml"].append(xml_data)
-
+                    xml_processed += 1
+                    xml_progress.progress(xml_processed / xml_count)
+            
+            elif file_name.endswith(".jpg") or file_name.endswith(".jpeg") or file_name.endswith(".png"):
+                jpg_data = parse_jpgs(file, file_name, save_path, jpg_progress, jpg_status, overall_progress, file_index, total_files)
+                if jpg_data:
+                    project["files"].append(jpg_data)
+                    jpg_processed += 1
+                    jpg_progress.progress(jpg_processed / jpg_count)
+            
+            # Update overall progress
             overall_progress.progress((file_index + 1) / total_files)
 
             elapsed_time = time.time() - start_time

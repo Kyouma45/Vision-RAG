@@ -16,7 +16,7 @@ def main():
             "Create Sector",
             "Create Project",
             "Load Project",
-            "Delete Project",
+            "Delete Projects",
             "Delete Sector",
             "Check Project Status",
             "Update KPIs"
@@ -38,7 +38,7 @@ def main():
         refresh_data(sectors, data)
         sector = load_project()
         chat_interface(sector)
-    elif action == "Delete Project":
+    elif action == "Delete Projects":
         delete_project()
     elif action == "Delete Sector":
         delete_sector()

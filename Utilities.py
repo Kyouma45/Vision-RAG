@@ -114,12 +114,12 @@ def load_prompts() -> None:
         # Optional: Display success message to user
         st.success("✅ Successfully loaded KPI prompts")
 
-    except FileNotFoundError as e:
-        error_msg = f"Error: {str(e)}"
-        st.error(error_msg)
-
     except pd.errors.EmptyDataError as e:
         error_msg = "Error: The KPIs.csv file is empty"
+        st.error(error_msg)
+
+    except FileNotFoundError as e:
+        error_msg = f"Error: {str(e)}"
         st.error(error_msg)
 
     except KeyError as e:
@@ -232,7 +232,7 @@ def validate_index_name(index_name: str) -> str:
     index_name = index_name.lower()
 
     # Replace invalid characters with hyphens
-    index_name = re.sub(r'[^a-z0-9-]', '-', index_name)
+    index_name = re.sub(r'[^a-z0-9-_]', '-', index_name)
 
     # Remove leading/trailing hyphens
     index_name = index_name.strip('-')
@@ -313,7 +313,6 @@ def refresh_data(sectors, data):
                     shutil.rmtree(sector_path)
                 except Exception as e:
                     st.error(f"🚫 Error removing sector {x}: {str(e)}")
-                    raise
 
                 del data["sectors"][x]
             else:
@@ -323,7 +322,6 @@ def refresh_data(sectors, data):
                             shutil.rmtree(f'./sectors/{x}/{y}')
                         except Exception as e:
                             st.error(f"🚫 Error removing project {y}: {str(e)}")
-                            raise
                         del data["sectors"][x]["projects"][y]
 
         save_data(data)
@@ -535,8 +533,8 @@ def create_sector():
             return
 
         # Validate sector name
-        if not sector_name.isalnum() and not all(c.isalnum() or c == '_' for c in sector_name):
-            st.error("⚠️ Sector name can only contain letters, numbers, and underscores")
+        if not sector_name.isalnum() and not all(c.isalnum() or c == '-' for c in sector_name):
+            st.error("⚠️ Sector name can only contain letters, numbers, and hyphens")
             return
 
         # Check if sector exists
@@ -673,10 +671,10 @@ def create_project():
 
         with upload_col1:
             input_files = st.file_uploader(
-                "Upload PDF or XML Files",
-                type=["pdf", "xml"],
+                "Upload PDF/XML/Jpeg/JPG/PNG Files",
+                type=["pdf", "xml", "jpeg", "jpg", "png"],
                 accept_multiple_files=True,
-                help="Select one or more PDF or XML files to include in the project"
+                help="Select one or more PDF/XML/JPEG/JPG/PNG files to include in the project"
             )
 
         with upload_col2:
@@ -740,7 +738,6 @@ def create_project():
                             progress_bar.progress(i / len(input_files))
                         except Exception as e:
                             st.error(f"❌ Error saving {file.name}: {str(e)}")
-                            raise
 
                     st.write("🔍 Parsing files...")
                     parse_files(
@@ -993,7 +990,7 @@ def delete_project():
                     for project, error in deletion_results["failed"]:
                         st.error(f"- {project}: {error}")
 
-                time.sleep(0.5)  # Brief delay for UI feedback
+                time.sleep(3)  # Brief delay for UI feedback
                 st.rerun()  # Refresh the page to show updated state
 
         except KeyError as e:
@@ -1067,10 +1064,8 @@ def delete_sector():
                         shutil.rmtree(sector_path)
                     except PermissionError:
                         st.error("🔒 Permission denied: Unable to delete sector files. Check your permissions.")
-                        raise
                     except Exception as e:
                         st.error(f"🚫 Error deleting sector files: {str(e)}")
-                        raise
 
                 # Update data structures
                 if sector_name in data["sectors"]:
@@ -1315,33 +1310,34 @@ def chat_interface(sector):
         except Exception as e:
             st.error(f"Error: {str(e)}")
 
-    df = pd.read_csv(f"{st.session_state.project_path}/{st.session_state.project}.csv")
-    if df.shape[0] > 0:
-        st.dataframe(df)
-    else:
-        st.write("No Predetermined KPIs!!!")
+    if os.path.exists(f"{st.session_state.project_path}/{st.session_state.project}.csv"):
+        df = pd.read_csv(f"{st.session_state.project_path}/{st.session_state.project}.csv")
+        if df.shape[0] > 0:
+            st.dataframe(df)
+        else:
+            st.write("No Predetermined KPIs!!!")
 
-    # Create download buttons
-    col1, col2 = st.columns(2)
+        # Create download buttons
+        col1, col2 = st.columns(2)
 
-    with col1:
-        csv = df.to_csv(index=False)
-        csv_bytes = csv.encode()
-        st.download_button(
-            label="Download as CSV",
-            data=csv_bytes,
-            file_name=f"{st.session_state.sector}_{st.session_state.project}.csv",
-            mime="text/csv",
-        )
+        with col1:
+            csv = df.to_csv(index=False)
+            csv_bytes = csv.encode()
+            st.download_button(
+                label="Download as CSV",
+                data=csv_bytes,
+                file_name=f"{st.session_state.sector}_{st.session_state.project}.csv",
+                mime="text/csv",
+            )
 
-    with col2:
-        excel_bytes = to_excel(df)
-        st.download_button(
-            label="Download as Excel",
-            data=excel_bytes,
-            file_name=f"{st.session_state.sector}_{st.session_state.project}.xlsx",
-            mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-        )
+        with col2:
+            excel_bytes = to_excel(df)
+            st.download_button(
+                label="Download as Excel",
+                data=excel_bytes,
+                file_name=f"{st.session_state.sector}_{st.session_state.project}.xlsx",
+                mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+            )
 
     file_path = f"{st.session_state.project_path}/temp.csv"
 
@@ -1432,6 +1428,11 @@ def project_status():
     except Exception as e:
         error_placeholder.error(f"Error loading data: {str(e)}")
         return
+
+    # Deleting the empty sectors if any
+    keys_to_delete = [key for key, value in sectors_data.items() if len(value.get("projects", [])) == 0]
+    for key in keys_to_delete:
+        del sectors_data[key]
 
     # Add a container for selection controls
     with st.container():
