@@ -884,33 +884,6 @@ def load_project():
                             f"{data['sectors'][sector_name]['requests_prompts']:,}",
                             help="Total prompts used across all projects in this sector"
                         )
-
-                    file_path = f"./sectors/{st.session_state.sector}/{st.session_state.project}/translated_file.txt"
-                    try:
-                        # Open the file in binary mode to detect encoding with chardet
-                        with open(file_path, "rb") as file:
-                            raw_data = file.read()
-                            result = chardet.detect(raw_data)  # Detect the encoding
-                            encoding = result['encoding']  # Get the detected encoding
-
-                        # Open the file with the detected encoding
-                        with open(file_path, "r", encoding=encoding) as file:
-                            txt = file.read()
-
-                        st.download_button(
-                            label="Translated Txt",
-                            data=txt,
-                            file_name="Translated_File.txt",
-                            mime="text/plain"
-                        )
-
-                    except FileNotFoundError:
-                        st.error(f"Error: The file {file_path} does not exist.")
-                    except IOError as e:
-                        st.error(f"Error reading the file {file_path}: {e}")
-                    except Exception as e:
-                        st.error(f"An unexpected error occurred: {e}")
-
                     return sector_name
                 except Exception as e:
                     st.sidebar.error(f"Error loading project '{project_name}': {str(e)}")
@@ -1181,10 +1154,39 @@ def chat_interface(sector):
         st.error(f"Error creating chain: {str(e)}")
         st.error("Please check your configuration and try again.")
         return
-    
+
+    col1, col2 = st.columns([2, 2])
+
+    with col1:
+        file_path = f"./sectors/{st.session_state.sector}/{st.session_state.project}/translated_file.txt"
+        try:
+            # Open the file in binary mode to detect encoding with chardet
+            with open(file_path, "rb") as file:
+                raw_data = file.read()
+                result = chardet.detect(raw_data)  # Detect the encoding
+                encoding = result['encoding']  # Get the detected encoding
+
+            # Open the file with the detected encoding
+            with open(file_path, "r", encoding=encoding) as file:
+                txt = file.read()
+
+            st.download_button(
+                label="Translated Txt",
+                data=txt,
+                file_name=f"{st.session_state.sector}_{st.session_state.project}_Translated.txt",
+                mime="text/plain"
+            )
+        except FileNotFoundError:
+            st.error(f"Error: The file {file_path} does not exist.")
+        except IOError as e:
+            st.error(f"Error reading the file {file_path}: {e}")
+        except Exception as e:
+            st.error(f"An unexpected error occurred: {e}")
+
     generate_answers = False
-    if st.session_state.Prompt:
-        generate_answers = st.button("Generate answers", key="generate_csv")
+    with col2:
+        if st.session_state.Prompt:
+            generate_answers = st.button("Generate answers", key="generate_csv")
 
     if generate_answers:
         answers_n = []
@@ -1626,12 +1628,11 @@ def project_status():
                         with open(file_path, "r", encoding=encoding) as file:
                             txt = file.read()
 
-                        # Display the file content in the app and provide a download button
-                        st.title("Translated File")
+
                         st.download_button(
-                            label="Download the file",
+                            label="Translated TXT",
                             data=txt,
-                            file_name="Translated_File.txt",
+                            file_name=f"{selected_sector}_{selected_project}_Translated.txt",
                             mime="text/plain"
                         )
 

@@ -107,7 +107,7 @@ def create_vectorstore(
 
     total_docs = len(docs)
     embeddings = get_embeddings()
-    bm25_encoder = get_bm25_encoder()
+    #bm25_encoder = get_bm25_encoder()
 
     progress_bar = st.progress(0)
     status_text = st.empty()
@@ -158,7 +158,7 @@ def create_vectorstore(
     texts = [doc.page_content for doc in docs]
 
     # Fit BM25 encoder on all texts
-    bm25_encoder.fit(texts)
+    #bm25_encoder.fit(texts)
 
     # Add documents to the index in batches
     status_text.text("Adding documents to Pinecone...")
@@ -177,12 +177,12 @@ def create_vectorstore(
             vectors = []
             for j, doc in enumerate(batch):
                 metadata = prepare_metadata(doc)
-                sparse_dict = sparse_vectors[j]
+                #sparse_dict = sparse_vectors[j]
 
                 vectors.append({
                     "id": f"doc_{i + j}",
                     "values": dense_embeddings[j],
-                    "sparse_values": sparse_dict,
+                    #"sparse_values": sparse_dict,
                     "metadata": metadata
                 })
 
@@ -201,7 +201,6 @@ def create_vectorstore(
         return None
 
     st.write("Vector store created successfully with hybrid search enabled!")
-
     return vectorstore
 
 
