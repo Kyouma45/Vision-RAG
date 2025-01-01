@@ -27,10 +27,12 @@ from typing import Optional, Dict, Any, Tuple, List
 from langchain.retrievers.contextual_compression import ContextualCompressionRetriever
 # from langchain_community.retrievers import PineconeHybridSearchRetriever
 from langchain_cohere import CohereRerank
+import chardet
 
 # from pinecone_text.sparse import BM25Encoder
 
 load_dotenv()
+
 
 if 'sectors' not in st.session_state:
     st.session_state.sectors = []
@@ -42,6 +44,7 @@ if 'current_project' not in st.session_state:
     st.session_state.current_project = None
 if 'chain' not in st.session_state:
     st.session_state.chain = None
+
 
 st.session_state.retriever = None
 st.session_state.embeddings = OpenAIEmbeddings()
@@ -72,6 +75,18 @@ def load_prompts() -> None:
         "L1", "Theme", "Topic", "KPI_code", "KPI", "Prompt",
         "Alias 1", "Alias 2", "Alias 3", "Alias 4", "Alias 5", "Format"
     ]
+    st.session_state.L1 = []
+    st.session_state.Theme = []
+    st.session_state.Topic = []
+    st.session_state.KPI_code = []
+    st.session_state.KPI = []
+    st.session_state.Prompt = []
+    st.session_state.Alias_1 = []
+    st.session_state.Alias_2 = []
+    st.session_state.Alias_3 = []
+    st.session_state.Alias_4 = []
+    st.session_state.Alias_5 = []
+    st.session_state.Format = []
 
     try:
         # Check if file exists
@@ -84,18 +99,6 @@ def load_prompts() -> None:
 
         # Check if file is empty
         if df.empty:
-            st.session_state.L1 = []
-            st.session_state.Theme = []
-            st.session_state.Topic = []
-            st.session_state.KPI_code = []
-            st.session_state.KPI = []
-            st.session_state.Prompt = []
-            st.session_state.Alias_1 = []
-            st.session_state.Alias_2 = []
-            st.session_state.Alias_3 = []
-            st.session_state.Alias_4 = []
-            st.session_state.Alias_5 = []
-            st.session_state.Format = []
             raise pd.errors.EmptyDataError("The CSV file is empty")
 
         # Verify all required columns exist
@@ -119,8 +122,8 @@ def load_prompts() -> None:
         st.error(error_msg)
 
     except FileNotFoundError as e:
-        error_msg = f"Error: {str(e)}"
-        st.error(error_msg)
+        error_msg = f"Warning: {str(e)}"
+        st.warning(error_msg)
 
     except KeyError as e:
         error_msg = f"Error: {str(e)}"
@@ -202,8 +205,7 @@ def extract_text_from_jsonl(jsonl_path):
 
 
 def compress_parsed_pdfs(project_dir: Path):
-    files_to_delete = [f for f in project_dir.glob('*') if not f.suffix in ('.faiss', '.pkl')]
-
+    files_to_delete = [f for f in project_dir.glob('*') if f.name != 'translated_file.txt' and not f.suffix in ('.faiss', '.pkl')]
     progress_bar = st.progress(0)
     for i, file_path in enumerate(files_to_delete):
         try:
@@ -641,7 +643,7 @@ def create_project():
         st.markdown("### 📋 Project Information")
 
         # Create three columns for better layout
-        col1, col2, col3 = st.columns([2, 2, 1])
+        col1, col2, col3 = st.columns([1, 1, 1])
 
         with col1:
             sorted_sectors = sorted(list(data["sectors"].keys()))
@@ -662,17 +664,23 @@ def create_project():
                 placeholder="project 2024"
             ).strip().lower()
 
+        with col3:
+            target_language = st.text_input(
+                "Target Language",
+                help="Enter the target language for this project (e.g., English)",
+                placeholder="English"
+            ).strip().lower()
+
         # File upload section
         st.markdown("### 📁 Upload Files")
-        st.info("Maximum file size: 200MB per file", icon="ℹ️")
 
         # Create columns for upload area
         upload_col1, upload_col2 = st.columns([3, 1])
 
         with upload_col1:
             input_files = st.file_uploader(
-                "Upload PDF/XML/Jpeg/JPG/PNG Files",
-                type=["pdf", "xml", "jpeg", "jpg", "png"],
+                "Upload PDF/XML/JPEG/JPG/PNG/TXT Files",
+                type=["pdf", "xml", "jpeg", "jpg", "png", "txt"],
                 accept_multiple_files=True,
                 help="Select one or more PDF/XML/JPEG/JPG/PNG files to include in the project"
             )
@@ -682,11 +690,14 @@ def create_project():
                 st.metric("Files Selected", len(input_files))
 
         # Create action buttons
-        col1, col2, col3 = st.columns([2, 2, 1])
+        col1, col2 = st.columns([2, 2])
+        with col1:
+            instant_submit_button = st.button("📂 Create Project", type="primary", use_container_width=True)
         with col2:
-            submit_button = st.button("🚀 Create Project", type="primary", use_container_width=True)
+            submit_button = st.button("🚀 Create Batches", type="primary", use_container_width=True)
 
-        if submit_button:
+
+        if submit_button or instant_submit_button:
             # Validate inputs
             validation_errors = []
 
@@ -740,13 +751,12 @@ def create_project():
                             st.error(f"❌ Error saving {file.name}: {str(e)}")
 
                     st.write("🔍 Parsing files...")
-                    parse_files(
-                        input_files,
-                        str(project_dir),
-                        str(sector_name),
-                        str(project_name),
-                        st.session_state.selected_year
-                    )
+                    if submit_button:
+                        parse_files(input_files, str(project_dir), str(sector_name), str(project_name),
+                                    st.session_state.selected_year, True, target_language)
+                    else:
+                        parse_files(input_files, str(project_dir), str(sector_name), str(project_name),
+                                    st.session_state.selected_year, False, target_language)
 
                     # Mark status as complete
                     status.update(label="✅ Project created successfully!", state="complete")
@@ -780,7 +790,7 @@ def create_project():
                             shutil.rmtree(project_dir)
                             st.info("🧹 Cleaned up temporary files")
                     except Exception as cleanup_error:
-                        st.error(f"Failed to clean up: {str(cleanup_error)}")
+                        st.error(f"⚠️ Temporary files could not be removed: {str(cleanup_error)}")
 
 
 def load_project():
@@ -849,10 +859,11 @@ def load_project():
                                                                          "score_threshold": 0.85},
                                                           )
 
-                    compressor = CohereRerank(model="rerank-english-v3.0")
-                    # st.session_state.retriever = ContextualCompressionRetriever(
-                    #     base_compressor=compressor, base_retriever=retriever
-                    # )
+                    if data["sectors"][sector_name]['projects'][project_name]['target_language'] == 'english':
+                        compressor = CohereRerank(model="rerank-english-v3.0")
+                        st.session_state.retriever = ContextualCompressionRetriever(
+                            base_compressor=compressor, base_retriever=retriever
+                        )
                     st.session_state.retriever = retriever
                     st.session_state.project_path = str(f"./sectors/{sector_name}/{project_name}")
                     os.makedirs(st.session_state.project_path, exist_ok=True)
@@ -873,6 +884,33 @@ def load_project():
                             f"{data['sectors'][sector_name]['requests_prompts']:,}",
                             help="Total prompts used across all projects in this sector"
                         )
+
+                    file_path = f"./sectors/{st.session_state.sector}/{st.session_state.project}/translated_file.txt"
+                    try:
+                        # Open the file in binary mode to detect encoding with chardet
+                        with open(file_path, "rb") as file:
+                            raw_data = file.read()
+                            result = chardet.detect(raw_data)  # Detect the encoding
+                            encoding = result['encoding']  # Get the detected encoding
+
+                        # Open the file with the detected encoding
+                        with open(file_path, "r", encoding=encoding) as file:
+                            txt = file.read()
+
+                        st.download_button(
+                            label="Translated Txt",
+                            data=txt,
+                            file_name="Translated_File.txt",
+                            mime="text/plain"
+                        )
+
+                    except FileNotFoundError:
+                        st.error(f"Error: The file {file_path} does not exist.")
+                    except IOError as e:
+                        st.error(f"Error reading the file {file_path}: {e}")
+                    except Exception as e:
+                        st.error(f"An unexpected error occurred: {e}")
+
                     return sector_name
                 except Exception as e:
                     st.sidebar.error(f"Error loading project '{project_name}': {str(e)}")
@@ -1123,11 +1161,11 @@ def chat_interface(sector):
             ("human", "{question}"),
         ])
 
-        def format_docs(docs: List[Document]) -> str:
+        def format_docs(documents: List[Document]) -> str:
             formatted = [
-                (  # f"Page Number: {doc.metadata.get('page', 'N/A')}\n"
-                    f"Page Content: {doc.page_content}")
-                for doc in docs
+                (  # f"Page Number: {document.metadata.get('page', 'N/A')}\n"
+                    f"Page Content: {document.page_content}")
+                for document in documents
             ]
             return "\n\n" + "\n\n".join(formatted)
 
@@ -1143,9 +1181,12 @@ def chat_interface(sector):
         st.error(f"Error creating chain: {str(e)}")
         st.error("Please check your configuration and try again.")
         return
+    
+    generate_answers = False
+    if st.session_state.Prompt:
+        generate_answers = st.button("Generate answers", key="generate_csv")
 
-    if not os.path.isfile(f"{st.session_state.project_path}/{st.session_state.project}.csv") or st.button(
-            "Generate answers", key="generate_csv"):
+    if generate_answers:
         answers_n = []
         page_number_n = []
         answers_n_1 = []
@@ -1300,7 +1341,6 @@ def chat_interface(sector):
                 f'Page Numbers {st.session_state.selected_year - 1}-{st.session_state.selected_year - 2}': page_number_n_1,
                 'Unit': unit
             })
-
             df.to_csv(f"{st.session_state.project_path}/{st.session_state.project}.csv", index=False)
         except Exception as e:
             st.error(f"Error: {str(e)}")
@@ -1421,6 +1461,7 @@ def project_status():
     # Initialize empty placeholders for error messages
     error_placeholder = st.empty()
     status_placeholder = st.empty()
+    target_language = ""
 
     try:
         sectors_data = load_sectors()
@@ -1528,6 +1569,7 @@ def project_status():
                 my_bar.progress(50, text="Checking project status...")
                 status, text = check_project_batch_status(project_data)
                 st.session_state.selected_year = project_data["year"]
+                target_language = project_data["target_language"]
 
                 if status == "completed":
                     project_dir_path = Path(f"./sectors/{selected_sector}/{selected_project}")
@@ -1548,14 +1590,15 @@ def project_status():
                     processing_time = (end_time - time_created) / 3600
 
                     # Update project data
-                    sectors_data[selected_sector]["projects"] = [
+                    sectors_data[selected_sector]['projects'] = [
                         p for p in sectors_data[selected_sector]["projects"]
                         if p["project_name"] != selected_project
                     ]
 
                     data["sectors"][selected_sector]["projects"][selected_project] = {
                         "requests_prompts": 0,
-                        "year": st.session_state.selected_year
+                        "year": st.session_state.selected_year,
+                        "target_language": target_language,
                     }
 
                     # Save updated data with error handling
@@ -1570,6 +1613,35 @@ def project_status():
 
                     # Success message with metrics
                     st.success("✅ Project processed successfully!")
+
+                    file_path = f"./sectors/{selected_sector}/{selected_project}/translated_file.txt"
+                    try:
+                        # Open the file in binary mode to detect encoding with chardet
+                        with open(file_path, "rb") as file:
+                            raw_data = file.read()
+                            result = chardet.detect(raw_data)  # Detect the encoding
+                            encoding = result['encoding']  # Get the detected encoding
+
+                        # Open the file with the detected encoding
+                        with open(file_path, "r", encoding=encoding) as file:
+                            txt = file.read()
+
+                        # Display the file content in the app and provide a download button
+                        st.title("Translated File")
+                        st.download_button(
+                            label="Download the file",
+                            data=txt,
+                            file_name="Translated_File.txt",
+                            mime="text/plain"
+                        )
+
+                    except FileNotFoundError:
+                        st.error(f"Error: The file {file_path} does not exist.")
+                    except IOError as e:
+                        st.error(f"Error reading the file {file_path}: {e}")
+                    except Exception as e:
+                        st.error(f"An unexpected error occurred: {e}")
+
                     metric_col1, metric_col2, metric_col3 = st.columns(3)
                     with metric_col1:
                         st.metric("Processing Time", f"{processing_time:.2f} hrs")

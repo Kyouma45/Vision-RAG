@@ -2,23 +2,19 @@
     "sectors": {
         "test": {
             "projects": {
-                "test": {
-                    "requests_prompts": 0,
-                    "year": "2024"
-                },
-                "jap": {
+                "spanish": {
                     "requests_prompts": 1,
                     "year": "2024"
                 },
-                "pdf": {
-                    "requests_prompts": 3,
+                "english": {
+                    "requests_prompts": 0,
                     "year": "2024"
                 }
             },
             "requests_parsing": 0,
-            "requests_prompts": 5,
+            "requests_prompts": 1,
             "description": "",
-            "created_at": "2024-12-12 19:47:03"
+            "created_at": "2024-12-31 15:47:52"
         }
     }
 }

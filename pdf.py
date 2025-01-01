@@ -14,6 +14,8 @@ import tempfile
 from pdf2image import convert_from_path
 import io
 from PIL import Image
+import chardet
+
 
 load_dotenv()
 client = OpenAI()
@@ -106,7 +108,7 @@ def save_sectors(sectors_data, json_file_path='sectors.json'):
         return False
 
 
-def parse_pdfs(file, file_name, save_path, pdf_progress, pdf_status, overall_status, file_index, total_files):
+def parse_pdfs(file, file_name, save_path, pdf_progress, pdf_status, overall_status, file_index, total_files, batching):
     with tempfile.NamedTemporaryFile(delete=False, suffix=".pdf") as temp_file:
         temp_file.write(file.getvalue())
         temp_file_path = temp_file.name
@@ -125,20 +127,66 @@ def parse_pdfs(file, file_name, save_path, pdf_progress, pdf_status, overall_sta
         "pages": []
     }
 
+    context = ""
     for page_number, page in enumerate(pages, start=1):
         image_path = f'{save_path}/pdf_{file_name}_page_{page_number}.jpg'
         page.save(image_path, 'JPEG')
         base64_image = encode_image(image_path)
 
         jsonl_file_path = os.path.join(save_path, f'output_{file_name}_page_{page_number}.jsonl')
+        batch_job = None
 
-        payload = {
-            "custom_id": f"{page_number}",
-            "method": "POST",
-            "url": "/v1/chat/completions",
-            "body": {
-                "model": model,
-                "messages": [
+        if batching:
+            payload = {
+                "custom_id": f"{page_number}",
+                "method": "POST",
+                "url": "/v1/chat/completions",
+                "body": {
+                    "model": model,
+                    "messages": [
+                        {
+                            "role": "system",
+                            "content": "You are a helpful assistant."
+                        },
+                        {
+                            "role": "user",
+                            "content": [
+                                {
+                                    "type": "text",
+                                    "text": "Extract all text and tables from this image. For tables, format them "
+                                            "as markdown tables. Explain any info-graphics "
+                                            "Do not change or fill any value by yourself."
+                                            "Stick to the text in image only."
+                                },
+                                {
+                                    "type": "image_url",
+                                    "image_url": {
+                                        "url": f"data:image/jpeg;base64,{base64_image}"
+                                    }
+                                }
+                            ]
+                        }
+                    ],
+                    "max_tokens": 2000
+                }
+            }
+
+            with open(jsonl_file_path, 'w') as f:
+                json.dump(payload, f)
+                f.write('\n')
+
+            batch_input_file = retry_request_create(file=open(jsonl_file_path, "rb"), purpose="batch")
+
+            batch_job = retry_request(input_file_id=batch_input_file.id,
+                                      endpoint="/v1/chat/completions",
+                                      completion_window="24h",
+                                      metadata={
+                                          "description": f"extract text and tables"
+                                      })
+        else:
+            batch_job = client.chat.completions.create(
+                model=model,
+                messages=[
                     {
                         "role": "system",
                         "content": "You are a helpful assistant."
@@ -148,10 +196,12 @@ def parse_pdfs(file, file_name, save_path, pdf_progress, pdf_status, overall_sta
                         "content": [
                             {
                                 "type": "text",
-                                "text": "Extract all text and tables from this image. For tables, format them "
-                                        "as markdown tables. Explain any info-graphics "
-                                        "Do not change or fill any value by yourself."
-                                        "Stick to the text in image only."
+                                "text": (
+                                    "Extract all text and tables from this image. For tables, format them "
+                                    "as markdown tables. Explain any info-graphics. "
+                                    "Do not change or fill any value by yourself. "
+                                    "Stick to the text in image only."
+                                )
                             },
                             {
                                 "type": "image_url",
@@ -161,28 +211,17 @@ def parse_pdfs(file, file_name, save_path, pdf_progress, pdf_status, overall_sta
                             }
                         ]
                     }
-                ],
-                "max_tokens": 2000
-            }
-        }
+                ]
+            )
+            context = batch_job.choices[0].message.content
+            #st.write(response)
 
-        with open(jsonl_file_path, 'w') as f:
-            json.dump(payload, f)
-            f.write('\n')
-
-        batch_input_file = retry_request_create(file=open(jsonl_file_path, "rb"), purpose="batch")
-
-        batch_job = retry_request(input_file_id=batch_input_file.id,
-                                  endpoint="/v1/chat/completions",
-                                  completion_window="24h",
-                                  metadata={
-                                      "description": f"extract text and tables"
-                                  })
 
         pdf_info["pages"].append({
             "page_number": page_number,
             "batch_id": batch_job.id,
-            "image_path": image_path
+            "image_path": image_path,
+            "context": context
         })
 
         pdf_progress.progress(page_number / total_pages)
@@ -231,7 +270,7 @@ def parse_xml(file, file_name, save_path, xml_progress, xml_status):
         return None
 
 
-def parse_jpgs(file, file_name, save_path, jpg_progress, jpg_status, overall_status, file_index, total_files):
+def parse_jpgs(file, file_name, save_path, jpg_progress, jpg_status, overall_status, file_index, total_files, batching):
     jpg_info = {
         "file_name": file_name,
         "total_pages": 1,
@@ -239,13 +278,58 @@ def parse_jpgs(file, file_name, save_path, jpg_progress, jpg_status, overall_sta
     }
     jsonl_file_path = os.path.join(save_path, f'output_{file_name}.jsonl')
     base64_image = convert_image_to_base64(file)
-    payload = {
-        "custom_id": f"{file_name}",
-        "method": "POST",
-        "url": "/v1/chat/completions",
-        "body": {
-            "model": model,
-            "messages": [
+
+    context = ""
+    batch_job = None
+
+    if batching:
+        payload = {
+            "custom_id": f"{file_name}",
+            "method": "POST",
+            "url": "/v1/chat/completions",
+            "body": {
+                "model": model,
+                "messages": [
+                    {
+                        "role": "system",
+                        "content": "You are a helpful assistant."
+                    },
+                    {
+                        "role": "user",
+                        "content": [
+                            {
+                                "type": "text",
+                                "text": "Extract all text and tables from this image. For tables, format them "
+                                        "as markdown tables. Explain any info-graphics "
+                                        "Do not change or fill any value by yourself."
+                                        "Stick to the text in image only."
+                            },
+                            {
+                                "type": "image_url",
+                                "image_url": {
+                                    "url": f"data:image/jpeg;base64,{base64_image}"
+                                }
+                            }
+                        ]
+                    }
+                ],
+                "max_tokens": 2000
+            }
+        }
+        with open(jsonl_file_path, 'w') as f:
+            json.dump(payload, f)
+            f.write('\n')
+        batch_input_file = retry_request_create(file=open(jsonl_file_path, "rb"), purpose="batch")
+        batch_job = retry_request(input_file_id=batch_input_file.id,
+                                    endpoint="/v1/chat/completions",
+                                    completion_window="24h",
+                                    metadata={
+                                        "description": f"extract text and tables"
+                                })
+    else:
+        batch_job = client.chat.completions.create(
+            model=model,
+            messages=[
                 {
                     "role": "system",
                     "content": "You are a helpful assistant."
@@ -259,7 +343,6 @@ def parse_jpgs(file, file_name, save_path, jpg_progress, jpg_status, overall_sta
                                     "as markdown tables. Explain any info-graphics "
                                     "Do not change or fill any value by yourself."
                                     "Stick to the text in image only."
-                                    "If the text is not in English, please provide a translation."
                         },
                         {
                             "type": "image_url",
@@ -269,31 +352,21 @@ def parse_jpgs(file, file_name, save_path, jpg_progress, jpg_status, overall_sta
                         }
                     ]
                 }
-            ],
-            "max_tokens": 2000
-        }
-    }
-    with open(jsonl_file_path, 'w') as f:
-        json.dump(payload, f)
-        f.write('\n')
-    batch_input_file = retry_request_create(file=open(jsonl_file_path, "rb"), purpose="batch")
-    batch_job = retry_request(input_file_id=batch_input_file.id,
-                                endpoint="/v1/chat/completions",
-                                completion_window="24h",
-                                metadata={
-                                    "description": f"extract text and tables"
-                            })
+            ]
+        )
+        context = batch_job.choices[0].message.content
    
     jpg_info["pages"].append({
         "page_number": -1,
-        "batch_id": batch_job.id
+        "batch_id": batch_job.id,
+        "context": context
     })
     
     # Update JPG progress based on total number of image files
     jpg_progress.progress((file_index + 1) / total_files)
     
     jpg_status.markdown(
-        f"<p class='status-text'>Processing JPG {file_name}</p>",
+        f"<p class='status-text'>Processing Image {file_name}</p>",
         unsafe_allow_html=True)
    
     overall_progress_percentage = ((file_index + 1) / total_files) * 100
@@ -305,7 +378,20 @@ def parse_jpgs(file, file_name, save_path, jpg_progress, jpg_status, overall_sta
     return jpg_info                                
 
 
-def parse_files(files: List[BytesIO], save_path: str, sector_name: str, project_name: str, year) -> None:
+def parse_text(file, file_name, save_path, text_progress, text_status, overall_status, file_index, total_files):
+    try:
+        raw_data = file.read()
+        result = chardet.detect(raw_data)
+        encoding = result['encoding']
+        text = raw_data.decode(encoding)
+        text_info = {"file_name": file_name, "page_content": text}
+        return text_info
+    except Exception as e:
+        st.error(f"Error processing text file {file_name}: {e}")
+        return None
+
+
+def parse_files(files: List[BytesIO], save_path: str, sector_name: str, project_name: str, year, batching, target_language) -> None:
     start_time = time.time()
     total_files = len(files)
 
@@ -323,7 +409,10 @@ def parse_files(files: List[BytesIO], save_path: str, sector_name: str, project_
             "time_created": start_time,
             "path": save_path,
             "xml": [],
+            "txt": [],
             "year": year,
+            "batching": batching,
+            "target_language": target_language,
         }
         sectors_data[sector_name]["projects"].append(project)
 
@@ -337,6 +426,7 @@ def parse_files(files: List[BytesIO], save_path: str, sector_name: str, project_
         has_pdfs = any(file.name.endswith(".pdf") for file in files)
         has_xmls = any(file.name.endswith(".xml") for file in files)
         has_images = any(file.name.endswith((".jpg", ".jpeg", ".png")) for file in files)
+        has_txt = any(file.name.endswith(".txt") for file in files)
         
         # Conditionally create subheaders and progress bars
         if has_pdfs:
@@ -353,23 +443,30 @@ def parse_files(files: List[BytesIO], save_path: str, sector_name: str, project_
             st.subheader("Image Progress")
             jpg_progress = st.progress(0)
             jpg_status = st.empty()
+
+        if has_txt:
+            st.subheader("Txt Progress")
+            text_progress = st.progress(0)
+            text_status = st.empty()
         
         # Track progress for each file type
         pdf_count = len([f for f in files if f.name.endswith(".pdf")])
         xml_count = len([f for f in files if f.name.endswith(".xml")])
         jpg_count = len([f for f in files if f.name.endswith((".jpg", ".jpeg", ".png"))])
+        txt_count = len([f for f in files if f.name.endswith(".txt")])
         
         # Tracking variables for each file type
         pdf_processed = 0
         xml_processed = 0
         jpg_processed = 0
+        txt_processed = 0
         
         for file_index, file in enumerate(files):
             file_name = file.name
             file_status.markdown(f"<p class='status-text'>Processing file {file_index + 1}/{total_files}: {file_name}</p>", unsafe_allow_html=True)
             
             if file_name.endswith(".pdf"):
-                data = parse_pdfs(file, file_name, save_path, pdf_progress, pdf_status, overall_progress, file_index, total_files)
+                data = parse_pdfs(file, file_name, save_path, pdf_progress, pdf_status, overall_progress, file_index, total_files, batching)
                 if data:
                     project["files"].append(data)
                     pdf_processed += 1
@@ -383,11 +480,18 @@ def parse_files(files: List[BytesIO], save_path: str, sector_name: str, project_
                     xml_progress.progress(xml_processed / xml_count)
             
             elif file_name.endswith(".jpg") or file_name.endswith(".jpeg") or file_name.endswith(".png"):
-                jpg_data = parse_jpgs(file, file_name, save_path, jpg_progress, jpg_status, overall_progress, file_index, total_files)
+                jpg_data = parse_jpgs(file, file_name, save_path, jpg_progress, jpg_status, overall_progress, file_index, total_files, batching)
                 if jpg_data:
                     project["files"].append(jpg_data)
                     jpg_processed += 1
                     jpg_progress.progress(jpg_processed / jpg_count)
+
+            elif file_name.endswith(".txt"):
+                txt_data = parse_text(file, file_name, save_path, text_progress, text_status, overall_progress, file_index, total_files)
+                if txt_data:
+                    project["txt"].append(txt_data)
+                    txt_processed += 1
+                    text_progress.progress(txt_processed / txt_count)
             
             # Update overall progress
             overall_progress.progress((file_index + 1) / total_files)
