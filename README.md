@@ -60,14 +60,6 @@
 
 ---
 
-## URL
-
-```
-http://13.127.221.61/
-```
-
----
-
 ## Usage  
 
 1. Open the web application in your browser.  
