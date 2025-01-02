@@ -1,93 +1,120 @@
-# EnvintAI: Vision-RAG Application Documentation
+# VisRAG: Vision-Retrieval-Augmented Generation Application
 
-EnvintAI is an advanced Vision-RAG (Retrieval-Augmented Generation) application designed to process and extract relevant information from any type of PDF, regardless of its structure. It also parses infographics and accurately extracts data from formatted tables. By leveraging the power of Large Language Models (LLMs), EnvintAI delivers exceptional accuracy and efficiency. It uses advanced architecture like hybrid search, OCR, Reranker, Prompt Engineering, Hyperparameter Tunning, etc to reduce hallucination, cost, and inferance time while increasing accuracy.
+VisRAG is a cutting-edge Vision-RAG (Retrieval-Augmented Generation) application tailored to process and extract relevant information from diverse input files, irrespective of their structure. By leveraging advanced Large Language Models (LLMs) and sophisticated architectures, VisRAG ensures exceptional accuracy, cost efficiency, and reduced inference time. Key technologies such as hybrid search, Optical Character Recognition (OCR), reranking, prompt engineering, and hyperparameter tuning minimize hallucination and maximize performance.
 
 ---
 
 ## Key Features
 
 ### 1. **Multi-format Data Parsing**
-- **PDF Parsing**: EnvintAI converts each PDF page into grayscale images and processes them in batches for cost-efficiency.
-- **XML Parsing**: Users can upload XML files either independently or alongside PDFs. The extracted data from XMLs is merged with PDFs to enhance the knowledge database.
+- **PDF Parsing**: Converts each PDF page into grayscale images and processes them in batches, optimizing for cost efficiency without compromising accuracy.
+- **XML Parsing**: Users can upload XML files independently or alongside PDFs. Extracted data from XMLs is seamlessly merged with PDF data to enrich the knowledge database.
+- **Image Formats**: Supports JPEG, JPG, and PNG files for versatile data input.
+- **TXT Parsing**: Users can upload TXT files independently or alongside PDFs. Extracted data from TXTs is seamlessly merged with PDF data to enrich the knowledge database.
 
 ### 2. **Efficient Batch Processing**
-- Utilizes OpenAI’s **4o model** for OCR capabilities.
-- Batches reduce processing costs by 50%, although results may take up to 24 hours.
-- The **Check Project Status** feature provides a real-time list of pending projects and updates project completion status automatically.
+- **OCR Capabilities**: Powered by OpenAI’s 4o model for precise text extraction.
+- **Cost Savings**: Batches reduce processing costs by 50%.
+- **Timeframe**: While batch processing may take up to 24 hours, real-time processing is available for urgent requests.
+- **Real-time Status Monitoring**: The **Check Project Status** feature provides instant updates on pending and completed projects, ensuring transparency.
 
 ### 3. **Advanced Data Embeddings**
-- **Embedding Model**: OpenAI’s embedding model (insert model name) converts text into **728-dimension embeddings**.
-- **Storage**: 
-  - Embeddings are stored in a serverless database powered by Pinecone.
-  - Text is stored in two formats:
-    - Embeddings for similarity search.
-    - Count vectors for BM25 search.
-- **Hybrid Search**: Combines similarity and BM25 searches for the most accurate query results.
-- **Enhanced Accuracy**: Hyperparameter tuning filters and threshold values prevent model hallucination, while Cohere’s reranker improves accuracy by 2%.
+- **Embedding Model**: OpenAI’s embedding model (model details can be specified) generates high-dimensional (728-dimension) embeddings for superior data representation.
+- **Storage Solution**:
+  - Embeddings stored in a serverless database powered by Pinecone for robust similarity search.
+  - Text stored in:
+    - Embedding format for semantic search.
+    - Count vectors for BM25 keyword-based search.
+- **Hybrid Search**: Combines semantic embeddings with BM25 for unparalleled query precision.
+- **Accuracy Enhancements**:
+  - Hyperparameter tuning and threshold optimization reduce hallucinations.
+  - Cohere’s reranker improves result accuracy by an additional 2%.
 
 ### 4. **KPI Management**
-- **Update KPIs**: Allows users to upload peer benchmarking templates in CSV format. The application automatically extracts and stores KPI information in the backend.
-- **Report Generation**:
-  - Automatically generates responses to KPIs for any completed project.
-  - Peer benchmarking reports are downloadable in **Excel** and **CSV** formats.
-  - A **Generate Responses** button enables manual report generation.
+- **KPI Upload**: Users can upload peer benchmarking templates in CSV format to streamline KPI extraction.
+- **Automated Reports**:
+  - Generates peer benchmarking and KPI responses automatically.
+  - Reports available for download in **Excel** and **CSV** formats.
+- **Manual Reports**: Generate ad-hoc responses with the **Generate Responses** button for flexibility.
 
 ### 5. **Interactive Querying**
-- Includes a **chat box** for querying any project-related questions.
+- Integrated **chat box** for querying project-specific questions and retrieving detailed insights interactively.
 
-### 6. **Multiple Alias**
-- You can provide up to 5 different aliases for one single KPI. For eg: GHG, Greenhouse Gas, Emission, etc. This is done because same word can be written differently in all the PDFs depending on the company.
+### 6. **Multiple Aliases**
+- Supports up to 5 aliases for each KPI (e.g., GHG, Greenhouse Gas, Emission) to accommodate variations in terminology across documents.
+
+### 7. **Document Translation**
+- Users can specify a target output language for document translation.
+- Extracted text is translated into the specified language and can be downloaded in **TXT** format.
+- The chat interface also supports interaction in the target language, allowing users to query and engage in the specified language seamlessly.
 
 ---
 
 ## Workflow
 
-### **PDF Processing**
-1. **Upload PDFs**: Extracted into grayscale images for processing.
-2. **Batching**: Batches are sent to OpenAI’s 4o model for OCR.
-3. **Status Check**: Use the **Check Project Status** feature to monitor progress.
-4. **Completion**: Processed data is merged with XML data (if provided).
+### **Document Processing**
+1. **Upload Documents**: Upload PDFs, XMLs, images, or text files via the user-friendly interface.
+2. **Data Extraction**:
+   - PDF pages are converted into grayscale images for OCR processing.
+   - XML and TXT files are parsed directly using structured extraction techniques.
+3. **Batching**: Documents are processed in batches to optimize cost and time. Users can opt for real-time processing if needed.
+4. **Translation**: Checks for language compliance and translates extracted text to the desired output language if necessary.
+5. **Status Monitoring**: Use the **Check Project Status** feature to track progress in real-time.
+6. **Data Merging**: Combines processed data with supplementary sources (XML, TXT, etc.) to create a comprehensive knowledge base.
+7. **Space Compression**: Reduces the size of processed projects by cleaning temporary data and compressing results.
 
 ### **Embedding Creation**
-1. Text converted into embeddings using OpenAI’s model.
-2. Stored in Pinecone for hybrid search capabilities.
-3. Enhanced with hyperparameter tuning and reranking.
+1. Converts extracted text into high-dimensional embeddings using OpenAI’s model.
+2. Embeddings are stored in Pinecone for efficient retrieval and hybrid search.
+3. Enhanced with hyperparameter tuning and reranking for improved query accuracy.
 
 ### **KPI Handling**
-1. Upload CSV templates via the **Update KPIs** feature.
-2. Extracted KPI data is stored in the backend for benchmarking.
-3. Generate reports or use the chat box for detailed insights.
+1. Upload peer benchmarking templates in CSV format via the **Update KPIs** feature.
+2. Automatically extracts and stores KPI data for backend benchmarking.
+3. Generate detailed reports or query insights through the chat box.
 
 ---
 
 ## Usage Instructions
 
-1. **Upload Documents**: 
-   - Upload PDFs and/or XML files via the interface.
-2. **Monitor Project Status**: 
-   - Check pending and completed projects through **Check Project Status**.
+1. **Upload Documents**:
+   - Supported formats: PDFs, JPEG, JPG, PNG, XML, TXT.
+   - Use the upload interface for seamless file submission.
+2. **Monitor Project Status**:
+   - Track progress via the **Check Project Status** feature.
 3. **Generate Reports**:
-   - Use the **Generate Responses** button or download pre-generated reports.
-4. **Query Projects**:
-   - Use the chat box for specific project-related questions.
+   - Pre-generated reports can be downloaded, or manual responses can be generated with the **Generate Responses** button.
+4. **Translate Documents**:
+   - Use the **Translate TXT** button to download translated text files.
+   - Specify a target language to translate input files and interact in the desired language through the chat interface.
+5. **Query Projects**:
+   - Interact with the chat box for project-specific questions or insights.
 
 ---
 
 ## Output Formats
 
-- Peer benchmarking reports: **Excel** and **CSV**
-- Search results: Based on hybrid search using embeddings and BM25.
+- **Reports**:
+  - Peer benchmarking and KPI responses in **Excel** and **CSV** formats.
+- **Translated Documents**:
+  - Text output available in **TXT** format.
+- **Search Results**:
+  - Delivered through hybrid search mechanisms combining embeddings and BM25.
 
 ---
 
 ## Benefits
 
-- **Cost-Efficient**: Reduced OCR processing costs through batching.
-- **Scalable**: Handles both structured and unstructured data seamlessly.
-- **Accurate**: Combines state-of-the-art embedding and ranking techniques for superior results.
-- **User-Friendly**: Interactive status checks, intuitive report generation, and a query chat box for convenience.
+- **Cost Efficiency**: Batch processing reduces OCR costs by up to 50%.
+- **Scalability**: Seamlessly handles structured and unstructured data.
+- **High Accuracy**: Leverages state-of-the-art embedding, reranking, and hyperparameter tuning techniques.
+- **User-Friendly**: Intuitive interfaces for uploads, status checks, and report generation.
+- **Language Support**: Specify a target output language for translations and chat interactions, enhancing accessibility and flexibility.
+- **Customizability**: Alias management and KPI updates allow tailored experiences for diverse use cases.
 
 ---
+
+
 
 ## Code Walkthrough
 
@@ -184,6 +211,7 @@ It contains helper functions for managing data, prompts, and sectors.
 - Enhanced retry logic with exponential backoff.
 - Improved visualization of processing statuses.
 
---- 
+---
 
-EnvintAI provides a robust, efficient, and accurate solution for parsing and analyzing complex documents, making it an essential tool for data-driven decision-making.
+VisRAG is your ultimate solution for efficient, accurate, and scalable document processing and information retrieval. Designed for modern needs, it’s an essential tool for any organization aiming to harness the power of AI-driven data processing and analysis.
+
