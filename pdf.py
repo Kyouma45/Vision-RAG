@@ -114,7 +114,7 @@ def parse_pdfs(file, file_name, save_path, pdf_progress, pdf_status, overall_sta
         temp_file_path = temp_file.name
 
     try:
-        pages = convert_from_path(pdf_path=temp_file_path, dpi=200, grayscale=True, output_folder=save_path)
+        pages = convert_from_path(pdf_path=temp_file_path, dpi=200, grayscale=False, output_folder=save_path)
     except Exception as e:
         st.error(f"Error converting PDF to images: {e}")
         return None
