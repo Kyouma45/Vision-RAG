@@ -48,6 +48,9 @@ VisRAG is a cutting-edge Vision-RAG (Retrieval-Augmented Generation) application
 - Extracted text is translated into the specified language and can be downloaded in **TXT** format.
 - The chat interface also supports interaction in the target language, allowing users to query and engage in the specified language seamlessly.
 
+### 8. **Synchronisation**
+- 
+
 ---
 
 ## Workflow
