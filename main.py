@@ -1,6 +1,6 @@
 from Utilities import (load_data, create_sector, create_project,
                        load_project, delete_project, chat_interface,
-                       delete_sector, project_status, update_KPIs, refresh_data)
+                       delete_sector, project_status, update_KPIs, refresh_data, analyze)
 import streamlit as st
 
 
@@ -19,7 +19,8 @@ def main():
             "Delete Projects",
             "Delete Sector",
             "Check Project Status",
-            "Update KPIs"
+            "Update KPIs",
+            "Analyze Content"
         ],
     )
 
@@ -46,6 +47,8 @@ def main():
         project_status()
     elif action == "Update KPIs":
         update_KPIs()
+    elif action == "Analyze Content":
+        analyze()
 
 
 if __name__ == "__main__":

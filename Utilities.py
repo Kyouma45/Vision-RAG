@@ -7,6 +7,9 @@ import shutil
 import os
 import time
 import re
+import logging
+import tempfile
+from openai import OpenAI
 from pinecone import Pinecone, ServerlessSpec
 from pathlib import Path
 from langchain_core.documents import Document
@@ -16,22 +19,37 @@ from langchain_core.prompts import ChatPromptTemplate, MessagesPlaceholder
 from langchain_core.messages import HumanMessage, AIMessage
 from langchain_core.output_parsers import StrOutputParser
 from langchain_pinecone import PineconeVectorStore
+from langchain.text_splitter import RecursiveCharacterTextSplitter
 from dotenv import load_dotenv
 from pdf import parse_files
 from vectorstore import create_vectorstore  # , hybrid_search, HybridRetriever
 from operator import itemgetter
-from status import check_project_batch_status
+from status import check_project_batch_status, translate
 from openpyxl import Workbook
 from openpyxl.utils.dataframe import dataframe_to_rows
 from typing import Optional, Dict, Any, Tuple, List
 from langchain.retrievers.contextual_compression import ContextualCompressionRetriever
+# Conditional import of LangSmith to prevent SSL issues
+try:
+    from langsmith import Client
+    LANGSMITH_AVAILABLE = True
+except ImportError:
+    LANGSMITH_AVAILABLE = False
+    Client = None
+from concurrent.futures import ThreadPoolExecutor, as_completed
 # from langchain_community.retrievers import PineconeHybridSearchRetriever
 from langchain_cohere import CohereRerank
 import chardet
-
+from status import translate, summarize
 # from pinecone_text.sparse import BM25Encoder
 
 load_dotenv()
+
+# Disable LangSmith tracing to avoid SSL issues if not needed
+os.environ["LANGCHAIN_TRACING_V2"] = "false"
+
+logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger(__name__)
 
 
 if 'sectors' not in st.session_state:
@@ -48,15 +66,12 @@ if 'chain' not in st.session_state:
 
 st.session_state.retriever = None
 st.session_state.embeddings = OpenAIEmbeddings()
-st.session_state.llm = ChatOpenAI(model="gpt-4o-mini")
+st.session_state.llm = ChatOpenAI(model="gpt-4.1")
 st.session_state.project_path = None
 st.session_state.sector = None
 st.session_state.project = None
 st.session_state.selected_year = None
 
-st.session_state.L1 = []
-st.session_state.Theme = []
-st.session_state.Topic = []
 st.session_state.KPI_code = []
 st.session_state.KPI = []
 st.session_state.Prompt = []
@@ -72,12 +87,9 @@ pc = Pinecone(environment="us-east-1-aws")
 
 def load_prompts() -> None:
     required_columns = [
-        "L1", "Theme", "Topic", "KPI_code", "KPI", "Prompt",
+        "KPI_code", "KPI", "Prompt",
         "Alias 1", "Alias 2", "Alias 3", "Alias 4", "Alias 5", "Format"
     ]
-    st.session_state.L1 = []
-    st.session_state.Theme = []
-    st.session_state.Topic = []
     st.session_state.KPI_code = []
     st.session_state.KPI = []
     st.session_state.Prompt = []
@@ -139,12 +151,11 @@ def load_prompts() -> None:
 
 
 def load_sectors(json_file_path='sectors.json'):
-    if os.path.exists(json_file_path):
+    try:
         with open(json_file_path, 'r') as f:
-            sectors_data = json.load(f)
-    else:
-        sectors_data = {"sectors": []}
-    return sectors_data
+            return json.load(f)
+    except (FileNotFoundError, json.JSONDecodeError):
+        return {}
 
 
 def load_data() -> Dict[str, Any]:
@@ -173,6 +184,78 @@ def save_sectors(sectors_data, json_file_path='sectors.json'):
         return True
     except IOError as e:
         st.error(f"Error saving sectors data: {e}")
+        return False
+    
+
+def generate_title(summaries: List[Dict[str, Any]]) -> str:
+    """
+    Generate a title for the document based on the summaries provided.
+    
+    Args:
+        summaries (List[Dict[str, Any]]): List of summary dictionaries containing 'summary' and 'page' keys.
+        
+    Returns:
+        str: Generated title for the document.
+    """
+    if not summaries:
+        return "Untitled Document"
+
+    # Extract text from summaries and concatenate
+    text = " ".join([summary.get("summary", "") for summary in summaries])
+    
+    # Use OpenAI to generate a title
+    response = st.session_state.llm.invoke(
+        [HumanMessage(content=f"Generate a concise title within 7 words for the following text:\n{text}")]
+    )
+    
+    return response.content.strip()
+
+
+def detect_logo(documents: List[Document]) -> bool:
+    """
+    Detect if a logo is present in the document by analyzing document content.
+    
+    Args:
+        documents: List of Document objects to analyze
+        
+    Returns:
+        bool: True if logo content is detected, False otherwise
+    """
+    if not documents:
+        return False
+    
+    try:
+        # Sample a few documents for efficiency (analyze up to 5 documents)
+        sample_docs = documents[:5] if len(documents) > 5 else documents
+        
+        # Combine content from sampled documents
+        combined_content = " ".join([doc.page_content[:500] for doc in sample_docs])
+        
+        # If content is too short, likely not meaningful content
+        if len(combined_content.strip()) < 50:
+            return True  # Assume logo if very little text content
+        
+        # Enhanced prompt for better detection
+        prompt = (
+            "Analyze the following text content and determine if it primarily describes "
+            "a logo, company branding, or contains mostly non-textual elements. "
+            "Consider factors like: very short text, company names only, "
+            "branding elements, or lack of substantial content. "
+            "Respond with only 'True' if logo/branding content is detected, "
+            "or 'False' if it contains substantial document content.\n\n"
+            f"Content: {combined_content}"
+        )
+        
+        response = st.session_state.llm.invoke(
+            [HumanMessage(content=prompt)]
+        )
+        
+        result = response.content.strip().lower()
+        return result == "true"
+        
+    except Exception as e:
+        logger.warning(f"Error in logo detection: {str(e)}")
+        # Return False on error to allow processing to continue
         return False
 
 
@@ -292,7 +375,10 @@ def refresh_data(sectors, data):
 
             project = index_name[i:-5]
             project_pinecone.append(project)
-            st.session_state.selected_year = int(index_name[-4:])
+            try:
+                st.session_state.selected_year = int(index_name[-4:])
+            except ValueError:
+                st.session_state.selected_year = None
 
             # Create project if it doesn't exist
             if project not in data["sectors"][sector]["projects"]:
@@ -347,7 +433,7 @@ def update_KPIs():
 
     # Create template DataFrame with required columns
     template_df = pd.DataFrame({
-        "L1": [], "Theme": [], "Topic": [], "KPI_code": [], "KPI": [], "Prompt": [],
+        "KPI_code": [], "KPI": [], "Prompt": [],
         "Alias 1": [], "Alias 2": [], "Alias 3": [], "Alias 4": [], "Alias 5": [],
         "Format": [],
     })
@@ -385,13 +471,11 @@ def update_KPIs():
 
             # Show summary statistics for existing KPIs
             st.subheader("Current KPIs Summary")
-            col1, col2, col3 = st.columns(3)
+            col1, col2 = st.columns(2)
             with col1:
                 st.metric("Total KPIs", len(existing_kpis))
             with col2:
-                st.metric("Themes", existing_kpis['Theme'].nunique())
-            with col3:
-                st.metric("Topics", existing_kpis['Topic'].nunique())
+                st.metric("KPI Codes", existing_kpis['KPI_code'].nunique())
 
             # Add download button for existing KPIs
             st.download_button(
@@ -417,7 +501,7 @@ def update_KPIs():
     )
 
     required_columns = [
-        "L1", "Theme", "Topic", "KPI_code", "KPI", "Prompt",
+        "KPI_code", "KPI", "Prompt",
         "Alias 1", "Alias 2", "Alias 3", "Alias 4", "Alias 5", "Format"
     ]
 
@@ -445,13 +529,11 @@ def update_KPIs():
 
                 # Show summary statistics
                 st.subheader("Summary")
-                col1, col2, col3 = st.columns(3)
+                col1, col2 = st.columns(2)
                 with col1:
                     st.metric("Total KPIs", len(df))
                 with col2:
-                    st.metric("Themes", df['Theme'].nunique())
-                with col3:
-                    st.metric("Topics", df['Topic'].nunique())
+                    st.metric("KPI Codes", df['KPI_code'].nunique())
 
                 # Submit button with confirmation
                 if st.button("Submit", type="primary"):
@@ -667,6 +749,7 @@ def create_project():
         with col3:
             target_language = st.text_input(
                 "Target Language",
+                value="English",
                 help="Enter the target language for this project (e.g., English)",
                 placeholder="English"
             ).strip().lower()
@@ -1010,13 +1093,14 @@ def delete_project():
             st.error(f"❌ Unexpected error: {str(e)}")
 
 
-def delete_sector():
-    st.title("Delete a Sector")
+def delete_sector(basic: list = None): # type: ignore
+    if basic == None:
+        st.title("Delete a Sector")
 
-    # Add warning message about permanent deletion
-    st.warning(
-        "⚠️ Warning: Deleting a sector will permanently remove all associated projects and data. This action cannot "
-        "be undone.")
+        # Add warning message about permanent deletion
+        st.warning(
+            "⚠️ Warning: Deleting a sector will permanently remove all associated projects and data. This action cannot "
+            "be undone.")
 
     try:
         data = load_data()
@@ -1026,6 +1110,20 @@ def delete_sector():
     except Exception as e:
         st.error("🚫 Unable to load data. Please check your permissions and try again.")
         st.error(f"Details: {str(e)}")
+        return
+    
+    try:
+        temp = load_sectors()
+    except Exception as e:
+        st.error("🚫 Error loading sector data. Please try again.")
+        st.error(f"Details: {str(e)}")
+        return
+
+    # Deleting temp files for analyzed docs
+    if basic:
+        if 'Analyze_sector' in temp:
+            del temp['Analyze_sector']
+            save_sectors(temp)
         return
 
     # Create columns for better layout
@@ -1038,13 +1136,6 @@ def delete_sector():
             sectors,
             help="Choose the sector you want to delete"
         )
-
-    try:
-        temp = load_sectors()
-    except Exception as e:
-        st.error("🚫 Error loading sector data. Please try again.")
-        st.error(f"Details: {str(e)}")
-        return
 
     # Add confirmation dialog
     if st.button("Delete Sector", key="delete_sector", type="primary"):
@@ -1083,6 +1174,7 @@ def delete_sector():
                     del data["sectors"][sector_name]
                 if sector_name in temp:
                     del temp[sector_name]
+
                 save_sectors(temp)
                 save_data(data)
 
@@ -1220,6 +1312,9 @@ def chat_interface(sector):
                                                                              -2:] + " or current reporting year"
                         )
 
+                        # formatted_prompt = translate(formatted_prompt, data["sectors"][st.session_state.sector]['projects'][st.session_state.project][
+                        #      'target_language'])
+
                         response = chain.invoke(formatted_prompt)
 
                         # Update request counts
@@ -1232,12 +1327,13 @@ def chat_interface(sector):
                         if response['answer'].lower().strip() != "not available":
                             break
 
-                    if response['answer'].lower().strip() != "not available" and st.session_state.Format[
+                    if response['answer'].lower().strip() != "not available" and st.session_state.Format[ # type: ignore
                         i].lower().strip() in ['number', 'currency']:
                         t = 0
-                        while t < len(response['answer']) and response['answer'][t] != ' ':
+                        while t < len(response['answer']) and response['answer'][t] != ' ': # type: ignore
                             t += 1
-                        unit.append(response['answer'][t:].strip())
+                        unit.append(translate(response['answer'][t:].strip(), data["sectors"][st.session_state.sector]['projects'][st.session_state.project][ # type: ignore
+                            'target_language']))
                     else:
                         unit.append(None)
 
@@ -1290,6 +1386,10 @@ def chat_interface(sector):
                                 st.session_state.selected_year - 2)[-2:] + " or previous reporting year"
                         )
 
+                        formatted_prompt = translate(formatted_prompt,
+                                                    data["sectors"][st.session_state.sector]['projects'][
+                                                        st.session_state.project][
+                                                        'target_language'])
                         response = chain.invoke(formatted_prompt)
 
                         # time.sleep(30)
@@ -1303,7 +1403,8 @@ def chat_interface(sector):
                         while t < len(answer) and answer[t] != ' ':
                             t += 1
                         answer = answer[:t].strip()
-                    answers_n_1.append(answer)
+                    answers_n_1.append(translate(answer, data["sectors"][st.session_state.sector]['projects'][st.session_state.project][
+                            'target_language']))
 
                     docs = response.get('docs', []) if response else []
                     page_nums = []
@@ -1331,9 +1432,6 @@ def chat_interface(sector):
 
         try:
             df = pd.DataFrame({
-                "L1": st.session_state.L1,
-                "Theme": st.session_state.Theme,
-                "Topic": st.session_state.Topic,
                 "KPI Code": st.session_state.KPI_code,
                 'KPI': st.session_state.KPI,
                 'Format': st.session_state.Format,
@@ -1402,6 +1500,9 @@ def chat_interface(sector):
                 st.error("Document retriever not initialized. Please load a project first.")
             else:
                 try:
+                    user_input = translate(user_input, data["sectors"][st.session_state.sector]['projects'][
+                        st.session_state.project][
+                        'target_language'])
                     response = chain.invoke(user_input)
                     data["sectors"][st.session_state.sector]["requests_prompts"] += 1
                     data["sectors"][st.session_state.sector]['projects'][st.session_state.project][
@@ -1592,8 +1693,8 @@ def project_status():
                     processing_time = (end_time - time_created) / 3600
 
                     # Update project data
-                    sectors_data[selected_sector]['projects'] = [
-                        p for p in sectors_data[selected_sector]["projects"]
+                    sectors_data[selected_sector]['projects'] = [ # type: ignore
+                        p for p in sectors_data[selected_sector]["projects"] # type: ignore
                         if p["project_name"] != selected_project
                     ]
 
@@ -1662,3 +1763,232 @@ def project_status():
                 my_bar.progress(100, text="Error occurred!")
                 st.error(f"Error processing project: {str(e)}")
                 st.exception(e)
+
+
+def analyze():
+    st.title("Analyze!!!")
+
+    # Create main container for better spacing
+    with st.container():
+        # File upload section
+        st.markdown("### 📁 Upload Files")
+
+        # Create columns for upload area
+        upload_col1, upload_col2 = st.columns([3, 1])
+
+        with upload_col1:
+            input_files = st.file_uploader(
+                "Upload PDF/JPEG/JPG/PNG Files",
+                type=["pdf", "jpeg", "jpg", "png"],
+                accept_multiple_files=True,
+                help="Select one or more PDF/JPEG/JPG/PNG files to include in the project",
+                key="analyze_file_uploader_unique"
+            )
+
+            target_language = st.text_input(
+                "Target Language",  # Added required label parameter
+                value="English",
+                help="Enter output language or leave blank for English"
+            )
+
+            target_language = target_language.lower()
+
+        with upload_col2:
+            if input_files:
+                st.metric("Files Selected", len(input_files))
+
+        # Only show buttons if files are uploaded
+        if input_files:
+            # Create action buttons
+            col1, col2 = st.columns([2, 2])
+            with col1:
+                instant_submit_button = st.button("📂 Create Project", type="primary", use_container_width=True)
+
+            if instant_submit_button:
+                # Validate files before processing
+                if not input_files:
+                    st.error("Please upload at least one file.")
+                    return
+
+                # Create project with progress tracking
+                status_container = st.empty()
+                with status_container.status("Analyzing input...", expanded=True) as status:
+                    try:
+                        # Create directory path
+                        dir_path = "./analyze"
+                        os.makedirs(dir_path, exist_ok=True)
+
+                        # Initialize client and prompt (only when needed)
+                        client = None
+                        prompt = None
+                        
+                        if LANGSMITH_AVAILABLE and Client:
+                            try:
+                                client = Client()
+                                prompt = client.pull_prompt("hardkothari/text_summary", include_model=True)
+                            except Exception as e:
+                                st.warning(f"LangSmith unavailable: {str(e)}")
+                                st.info("Continuing without LangSmith integration...")
+                                # Continue without LangSmith - set prompt to None to handle gracefully
+                                prompt = None
+                        else:
+                            st.info("LangSmith not available, continuing without integration...")
+
+                        status.update(label="🔍 Parsing files...", state="running")
+                        
+                        # Parse files with error handling
+                        try:
+                            parse_files(
+                                input_files,  # type: ignore
+                                dir_path, 
+                                "Analyze_sector", 
+                                "Analyze_project",
+                                2025, 
+                                False,  # Use submit_button flag directly
+                                None # if submit_button else None # type: ignore
+                            )
+                        except Exception as e:
+                            st.error(f"Failed to parse files: {str(e)}")
+                            return
+
+                        status.update(label="📚 Loading project data...", state="running")
+                        
+                        # Load and validate project data
+                        try:
+                            sectors_data = load_sectors()
+                            selected_sector_data = sectors_data.get("Analyze_sector", {})
+
+                            if not selected_sector_data:
+                                st.error("No sector data found after parsing.")
+                                return
+
+                            project_data = next(
+                                (p for p in selected_sector_data.get("projects", []) # type: ignore
+                                 if p["project_name"] == "Analyze_project"),
+                                None
+                            )
+
+                            if not project_data or not project_data.get("files"):
+                                st.error("No project data or files found after parsing.")
+                                return
+
+                        except Exception as e:
+                            st.error(f"Failed to load project data: {str(e)}")
+                            return
+
+                        status.update(label="✂️ Processing document chunks...", state="running")
+                        
+                        # Process documents with optimization
+                        output = []
+                        splitter = RecursiveCharacterTextSplitter(
+                            chunk_size=2000,
+                            chunk_overlap=200
+                        )
+                        
+                        total_files = len(project_data["files"])
+                        
+                        for pdf_index, pdf in enumerate(project_data["files"]):
+                            if not pdf.get("pages"):
+                                st.warning(f"No pages found in file: {pdf.get('file_name', 'Unknown')}")
+                                continue
+                                
+                            # Sort pages by page number for consistent processing
+                            sorted_pages = sorted(pdf["pages"], key=lambda x: x.get('page_number', 0))
+                            
+                            for page in sorted_pages:
+                                page_content = page.get("context", "").strip()
+                                
+                                if not page_content:
+                                    continue
+                                    
+                                chunks = splitter.split_text(page_content)
+                                for chunk in chunks:
+                                    if chunk.strip():  # Only add non-empty chunks
+                                        doc_obj = Document(
+                                            page_content=chunk,
+                                            metadata={
+                                                "source": pdf.get('file_name', 'Unknown'),
+                                                "page_number": page.get('page_number', 0),
+                                            }
+                                        )
+                                        output.append(doc_obj)
+
+                        if not output:
+                            st.warning("No content found to summarize.")
+                            return
+
+                        status.update(label="🤖 Generating summaries...", state="running")
+
+                        logo_flag = detect_logo(output)
+
+                        if logo_flag:
+                            st.warning("Logo detected in the document. Cancelling summarization!!!!")
+                            return
+                        
+                        file_summaries = {}  # Dictionary to store summaries by file
+                        file_summaries = summarize(output)
+
+                        status.update(label="✅ Analysis complete!", state="complete")
+                        
+                        # Display results
+                        st.markdown("### 📋 Analysis Results")
+                        
+                        # Show summary statistics
+                        col1, col2, col3 = st.columns(3)
+                        with col1:
+                            st.metric("Files Processed", total_files)
+                        with col2:
+                            st.metric("Text Chunks", len(output))
+                        with col3:
+                            st.metric("Files with Summaries", len(file_summaries))
+                        
+                        # Display the summaries organized by file
+                        st.markdown("### 📄 File Summaries")
+                        
+                        if file_summaries:
+                            for file_name, summaries in file_summaries.items():
+                                # Create a section for each file without using expander
+                                st.markdown(f"#### 📄 {file_name}")
+                                st.caption(f"📊 {len(summaries)} sections summarized from this file")
+                                
+                                # Sort summaries by page number
+                                sorted_summaries = sorted(summaries, key=lambda x: x.get("page", 0))
+
+                                title = generate_title(sorted_summaries)
+
+                                st.header(title)
+                                
+                                # Create a container for better organization
+                                with st.container():
+                                    for idx, summary_info in enumerate(sorted_summaries):
+                                        page_num = summary_info.get("page", 0)
+                                        summary_text = summary_info.get("summary", "")
+
+                                        #translating
+                                        summary_text = translate(summary_text, target_language)
+                                        
+                                        if summary_text:
+                                            st.markdown(f"**Page {page_num}:**")
+                                            st.markdown(summary_text)
+                                            
+                                            # Add separator between summaries (except for the last one)
+                                            if idx < len(sorted_summaries) - 1:
+                                                st.markdown("---")
+                                
+                                # Add space between different files
+                                st.markdown("---")
+                        else:
+                            st.warning("No summaries were generated from the uploaded files.")
+
+                    except Exception as e:
+                        status.update(label="❌ Error analyzing documents", state="error")
+                        st.error(f"An unexpected error occurred: {str(e)}")
+                    
+                    finally:
+                        # Clean up resources
+                        try:
+                            delete_sector(['Analyze_sector'])
+                        except Exception as cleanup_error:
+                            st.warning(f"Failed to clean up temporary data: {str(cleanup_error)}")
+        else:
+            st.info("👆 Please upload files to begin analysis.")

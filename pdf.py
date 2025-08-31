@@ -19,7 +19,7 @@ import chardet
 
 load_dotenv()
 client = OpenAI()
-model = "gpt-4o"
+model = "gpt-4.1"
 
 
 def encode_image(image_path):
@@ -108,7 +108,7 @@ def save_sectors(sectors_data, json_file_path='sectors.json'):
         return False
 
 
-def parse_pdfs(file, file_name, save_path, pdf_progress, pdf_status, overall_status, file_index, total_files, batching):
+def parse_pdfs(file, file_name, save_path, pdf_progress, pdf_status, overall_status, file_index, total_files, batching, prompt=None):
     with tempfile.NamedTemporaryFile(delete=False, suffix=".pdf") as temp_file:
         temp_file.write(file.getvalue())
         temp_file_path = temp_file.name
@@ -270,7 +270,7 @@ def parse_xml(file, file_name, save_path, xml_progress, xml_status):
         return None
 
 
-def parse_jpgs(file, file_name, save_path, jpg_progress, jpg_status, overall_status, file_index, total_files, batching):
+def parse_jpgs(file, file_name, save_path, jpg_progress, jpg_status, overall_status, file_index, total_files, batching, prompt=None):
     jpg_info = {
         "file_name": file_name,
         "total_pages": 1,
@@ -303,6 +303,8 @@ def parse_jpgs(file, file_name, save_path, jpg_progress, jpg_status, overall_sta
                                         "as markdown tables. Explain any info-graphics "
                                         "Do not change or fill any value by yourself."
                                         "Stick to the text in image only."
+                                        "Preserve text format as much as possible from the original image."
+                                        "Fill any gaps in the image with spaces."
                             },
                             {
                                 "type": "image_url",
@@ -343,6 +345,8 @@ def parse_jpgs(file, file_name, save_path, jpg_progress, jpg_status, overall_sta
                                     "as markdown tables. Explain any info-graphics "
                                     "Do not change or fill any value by yourself."
                                     "Stick to the text in image only."
+                                    "Preserve text format as much as possible from the original image."
+                                    "Fill any gaps in the image with spaces."
                         },
                         {
                             "type": "image_url",
@@ -391,7 +395,7 @@ def parse_text(file, file_name, save_path, text_progress, text_status, overall_s
         return None
 
 
-def parse_files(files: List[BytesIO], save_path: str, sector_name: str, project_name: str, year, batching, target_language) -> None:
+def parse_files(files: List[BytesIO], save_path: str, sector_name: str, project_name: str, year, batching=False, target_language='English', prompt = None) -> None:
     start_time = time.time()
     total_files = len(files)
 
@@ -466,21 +470,21 @@ def parse_files(files: List[BytesIO], save_path: str, sector_name: str, project_
             file_status.markdown(f"<p class='status-text'>Processing file {file_index + 1}/{total_files}: {file_name}</p>", unsafe_allow_html=True)
             
             if file_name.endswith(".pdf"):
-                data = parse_pdfs(file, file_name, save_path, pdf_progress, pdf_status, overall_progress, file_index, total_files, batching)
+                data = parse_pdfs(file, file_name, save_path, pdf_progress, pdf_status, overall_progress, file_index, total_files, batching, prompt)
                 if data:
                     project["files"].append(data)
                     pdf_processed += 1
                     pdf_progress.progress(pdf_processed / pdf_count)
             
             elif file_name.endswith(".xml"):
-                xml_data = parse_xml(file, file_name, save_path, xml_progress, xml_status)
+                xml_data = parse_xml(file, file_name, save_path, xml_progress, xml_status) # type: ignore
                 if xml_data:
                     project["xml"].append(xml_data)
                     xml_processed += 1
                     xml_progress.progress(xml_processed / xml_count)
             
             elif file_name.endswith(".jpg") or file_name.endswith(".jpeg") or file_name.endswith(".png"):
-                jpg_data = parse_jpgs(file, file_name, save_path, jpg_progress, jpg_status, overall_progress, file_index, total_files, batching)
+                jpg_data = parse_jpgs(file, file_name, save_path, jpg_progress, jpg_status, overall_progress, file_index, total_files, batching, prompt)
                 if jpg_data:
                     project["files"].append(jpg_data)
                     jpg_processed += 1
